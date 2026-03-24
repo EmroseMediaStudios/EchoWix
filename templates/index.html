@@ -143,6 +143,10 @@ function initSocket(){
     socket.on('call_transcription',d=>{setTranscript(d.role,d.text);addMessage(d.role==='user'?'user':'ai',d.text);saveConversation();});
     socket.on('call_audio',d=>{setCallSt('speaking');playChunk(d.data);});
     socket.on('call_audio_end',()=>{aiDoneSpeaking=true;if(!aPlaying&&inCall){setCallSt('listening');startListen();}});
+    socket.on('call_auto_hangup',()=>{
+        // Wait for audio to finish playing, then end call
+        const waitEnd=setInterval(()=>{if(!aPlaying&&!aQueue.length){clearInterval(waitEnd);if(inCall)endCall();}},200);
+    });
     socket.on('call_resume',()=>{if(inCall){setCallSt('listening');startListen();}});
     socket.on('call_error',d=>{console.error(d.error);if(inCall){setCallSt('listening');startListen();}});
 }
@@ -197,7 +201,7 @@ async function startCallFn(){
     socket.emit('call_start');setCallSt('listening');startListen();startInterruptMonitor();
 }
 function endCall(){
-    inCall=false;vadOn=false;stopInterruptMonitor();clearSilenceNudge();
+    inCall=false;vadOn=false;stopInterruptMonitor();clearSilenceNudge();silenceNudgeCount=0;
     if(currentAudioSrc){try{currentAudioSrc.pause();currentAudioSrc.src='';}catch(e){}currentAudioSrc=null;}
     if(callRec&&callRec.state!=='inactive')callRec.stop();
     if(callStream){callStream.getTracks().forEach(t=>t.stop());callStream=null;}
@@ -230,7 +234,7 @@ function monVAD(){
         if(!vadOn)return;analyser.getFloatTimeDomainData(data);
         let sum=0;for(let i=0;i<data.length;i++)sum+=data[i]*data[i];
         const rms=Math.sqrt(sum/data.length);
-        if(rms>SIL_THRESH){speaking=true;silStart=null;clearSilenceNudge();if(silTimer){clearTimeout(silTimer);silTimer=null;}}
+        if(rms>SIL_THRESH){speaking=true;silStart=null;clearSilenceNudge();silenceNudgeCount=0;if(silTimer){clearTimeout(silTimer);silTimer=null;}}
         else if(speaking&&!silStart){silStart=Date.now();silTimer=setTimeout(()=>{speaking=false;silStart=null;vadOn=false;if(callRec&&callRec.state==='recording')callRec.stop();},SIL_DUR);}
         if(vadOn)requestAnimationFrame(chk);
     }
@@ -250,14 +254,24 @@ function updTimer(){const m=Math.floor(callSec/60),s=callSec%60;document.getElem
 const SENTENCE_PAUSE_MS=400;
 const SILENCE_NUDGE_MS=10000;
 let silenceNudgeTimer=null;
+let silenceNudgeCount=0;
 const SILENCE_NUDGES=["you still there?","hello?","I can hear you breathing...","hey... you good?","you thinking or did I lose you?","...you fall asleep on me?"];
+const SILENCE_HANGUPS=["I think you disappeared on me... call me back when you want to talk.","alright, I think I lost you. I'm here whenever.","hey, I'm gonna let you go. Hit me up later.","looks like you're gone... talk soon, love you.","alright, guess you bounced. I'll be around.","I'll be here when you get back. Later."];
 function startSilenceNudge(){
     clearSilenceNudge();
     silenceNudgeTimer=setTimeout(()=>{
         if(!inCall||aPlaying||aQueue.length>0)return;
-        const nudge=SILENCE_NUDGES[Math.floor(Math.random()*SILENCE_NUDGES.length)];
-        socket.emit('call_utterance',{audio:null,nudge:nudge});
-        setCallSt('thinking');
+        silenceNudgeCount++;
+        if(silenceNudgeCount>=2){
+            // Second silence — hang up
+            const hangup=SILENCE_HANGUPS[Math.floor(Math.random()*SILENCE_HANGUPS.length)];
+            socket.emit('call_utterance',{audio:null,nudge:hangup,auto_hangup:true});
+            setCallSt('thinking');
+        }else{
+            const nudge=SILENCE_NUDGES[Math.floor(Math.random()*SILENCE_NUDGES.length)];
+            socket.emit('call_utterance',{audio:null,nudge:nudge});
+            setCallSt('thinking');
+        }
     },SILENCE_NUDGE_MS);
 }
 function clearSilenceNudge(){if(silenceNudgeTimer){clearTimeout(silenceNudgeTimer);silenceNudgeTimer=null;}}

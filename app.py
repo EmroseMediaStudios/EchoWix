@@ -660,6 +660,9 @@ def handle_call_utterance(data):
                 emit('call_audio', {'data': b64})
             emit('call_transcription', {'role': 'ai', 'text': nudge})
             emit('call_audio_end')
+            # If auto_hangup flag set, tell client to end the call after playback
+            if data.get('auto_hangup'):
+                emit('call_auto_hangup')
             return
         
         audio_data = data.get('audio')
