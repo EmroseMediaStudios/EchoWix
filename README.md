@@ -1,219 +1,228 @@
-# 🔮 EchoWix — Voice Chat/Call
+# 🔮 EchoWix — AI Voice Clone Chat & Call
 
-A Flask-based web application that enables real-time text chat and voice calls with an AI personality using your cloned voice via ElevenLabs TTS.
+A Flask-based web app that lets people text chat and voice call an AI clone of you, using your cloned voice via ElevenLabs TTS.
 
 ## Features
 
-- **Chat Mode**: Text-based conversation with streaming responses
-- **Voice Call Mode**: Live voice interaction with push-to-talk interface
-- **AI Personality**: Configurable system prompt and behavior
-- **Voice Cloning**: Uses your ElevenLabs cloned voice for natural-sounding responses
-- **Real-time Streaming**: Both text (SSE) and audio (WebSocket) streaming
-- **Dark Theme**: Beautiful dark navy/blue/orange interface with glowing effects
-- **Conversation Memory**: Maintains context across chat and voice modes
+- **Text Chat**: Streaming GPT-4o responses via SSE
+- **Voice Calls**: Full-duplex "phone call" style — continuous mic, VAD silence detection, real-time TTS response
+- **Three-Layer Memory System**:
+  - `context.md` — Core identity (always loaded): family, life events, favorites, opinions, stories
+  - `people/<username>.md` — Per-person knowledge (loaded when that person chats)
+  - `.memories/<username>.json` — Auto-extracted facts from conversations (keyword-searched per message)
+- **Persistent Conversations**: Saved to disk per user, survives restarts
+- **TTS Audio Cache**: Identical phrases served from disk cache (zero API credits on repeat)
+- **Login System**: Per-user accounts with session-based auth and configurable timeout
+- **Personality Prompt**: Loaded from `personality.md` — human-first, emotionally present
+- **Dark Theme UI**: Navy/blue/orange glassmorphism, responsive (desktop + mobile)
+- **Customizable Icons**: All buttons load from `static/img/` with emoji fallbacks
 
 ## Tech Stack
 
-- **Backend**: Python Flask + Flask-SocketIO with eventlet
-- **Frontend**: Vanilla JavaScript (no framework)
-- **AI**: OpenAI GPT-4o (chat), Whisper (speech-to-text), ElevenLabs (TTS)
-- **Real-time**: WebSocket (Socket.IO) for voice streaming
+- **Backend**: Python Flask + Flask-SocketIO (gevent)
+- **Frontend**: Vanilla JavaScript (no frameworks)
+- **AI**: OpenAI GPT-4o (text chat), GPT-4o-mini (voice calls + memory extraction), Whisper (STT)
+- **TTS**: ElevenLabs — `eleven_multilingual_v2` (text), `eleven_turbo_v2_5` (calls)
+- **Real-time**: WebSocket (Socket.IO) for voice, SSE for text streaming
 - **Port**: 7751
-
-## Prerequisites
-
-- Python 3.8+
-- OpenAI API key (for GPT-4o and Whisper)
-- ElevenLabs API key (for voice cloning TTS)
-- A cloned voice ID from ElevenLabs
-
-## Setup
-
-### 1. Clone and Navigate
-
-```bash
-cd /home/ubuntu/.openclaw/workspace/EchoWix
-```
-
-### 2. Configure API Keys
-
-```bash
-cp .env.example .env
-nano .env
-```
-
-Fill in your API keys:
-- `OPENAI_API_KEY`: Your OpenAI API key
-- `ELEVENLABS_API_KEY`: Your ElevenLabs API key
-- `SECRET_KEY`: Change to a secure random string
-
-### 3. Configure Personality
-
-Edit `config.json` to customize:
-- `name`: AI personality name
-- `voice_id`: Your ElevenLabs EchoWix voice ID (replace `PLACEHOLDER_VOICE_ID`)
-- `system_prompt`: Custom personality/behavior instructions
-- `tts_settings`: Voice settings (stability, similarity, style)
-
-Example:
-```json
-{
-  "name": "Your Clone",
-  "voice_id": "YOUR_VOICE_ID_HERE",
-  "system_prompt": "You are a helpful, friendly AI..."
-}
-```
-
-### 4. Launch the App
-
-```bash
-chmod +x run.sh
-./run.sh
-```
-
-The app will:
-1. Create a Python virtual environment (if needed)
-2. Install dependencies
-3. Start the Flask server on `http://localhost:7751`
-
-### 5. Access the App
-
-Open your browser and navigate to: `http://localhost:7751`
-
-## Usage
-
-### Chat Mode
-- Type a message and press Enter or click Send
-- AI responds with streaming text
-- Conversation history is maintained in the session
-
-### Voice Mode
-- Click and hold the microphone button to record
-- Release to send your voice message
-- AI will transcribe, respond, and speak back using your cloned voice
-- See transcription and responses displayed below the mic button
-
-### Mode Toggle
-- Use the Chat/Voice toggle at the top to switch modes
-- Conversation history is shared between modes
 
 ## File Structure
 
 ```
 EchoWix/
-├── app.py                  # Flask backend + WebSocket handlers
-├── config.json             # Personality/voice configuration
-├── .env.example            # API key template
-├── .env                    # Your actual API keys (not in git)
-├── requirements.txt        # Python dependencies
-├── run.sh                  # Launch script
-├── README.md               # This file
-├── static/                 # Static assets (img/, css/, etc.)
-└── templates/
-    └── index.html          # Single-page app (HTML + CSS + JS)
+├── app.py                    # Flask backend, all routes + WebSocket handlers
+├── config.json               # App configuration (models, voice, TTS settings)
+├── personality.md            # System prompt — who Steve is
+├── context.md                # Core identity — family, stories, favorites, opinions
+├── people/                   # Per-person knowledge files
+│   ├── drew.md
+│   ├── kim.md
+│   └── emma.md
+├── users.json                # User accounts (auto-generated on first run)
+├── .env                      # API keys (not in git)
+├── .env.example              # API key template
+├── requirements.txt          # Python dependencies
+├── run.sh                    # Launch script (creates venv, installs deps, starts app)
+├── static/img/               # UI icons and avatars
+│   ├── avatar.png            # Steve's avatar (header + messages)
+│   ├── logo.png              # Logo (left panel on desktop)
+│   ├── user-avatar.png       # User's avatar in messages
+│   ├── icon-call.png         # Call button
+│   ├── icon-hangup.png       # Hangup button
+│   ├── icon-menu.png         # Menu button
+│   ├── icon-send.png         # Send button
+│   └── icon-clear.png        # Clear conversation
+├── templates/
+│   ├── index.html            # Main app (SPA — HTML + CSS + JS)
+│   └── login.html            # Login page
+├── .tts_cache/               # Cached TTS audio (gitignored)
+├── .conversations/           # Persistent conversation history (gitignored)
+└── .memories/                # Auto-extracted user memories (gitignored)
 ```
 
-## Configuration Details
+## Setup
 
-### config.json
+### 1. Clone
+```bash
+git clone https://github.com/EmroseMediaStudios/EchoWix.git ~/Desktop/EchoWix
+cd ~/Desktop/EchoWix
+```
 
-- **name**: Display name for the AI personality
-- **voice_id**: Your ElevenLabs EchoWix voice ID
-- **system_prompt**: Instructions for AI behavior/tone
-- **model**: OpenAI model (default: gpt-4o)
-- **max_history**: Number of recent messages to keep for context (default: 20)
-- **tts_model**: ElevenLabs TTS model (default: eleven_multilingual_v2)
-- **tts_settings**: Voice parameters
-  - `stability`: 0-1 (higher = more consistent)
-  - `similarity_boost`: 0-1 (higher = closer to original voice)
-  - `style`: 0-1 (higher = more stylistic variation)
-
-### Environment Variables (.env)
-
+### 2. Configure API Keys
+```bash
+cp .env.example .env
+nano .env
+```
 ```
 OPENAI_API_KEY=sk-your-key
 ELEVENLABS_API_KEY=your-key
-SECRET_KEY=your-secret
+SECRET_KEY=echowix-prod-7751-xk9m2v
+SESSION_TIMEOUT_MINUTES=120
 ```
 
-## API Endpoints
+### 3. Add Images
+Copy your icon/avatar files to `static/img/`. All icons have emoji fallbacks if missing.
 
-### HTTP Routes
+### 4. Launch
+```bash
+chmod +x run.sh
+./run.sh
+```
+Opens at `http://localhost:7751`
 
-- **GET /** - Main app page
-- **GET /config** - Public config (name, model)
-- **POST /api/chat** - Text chat (streaming SSE response)
-- **POST /api/tts** - Text-to-speech (audio/mpeg response)
+## User Accounts
 
-### WebSocket Events
+Stored in `users.json` (auto-created on first run). Default accounts:
 
-**Client → Server:**
-- `voice_start` - Signal start of recording
-- `voice_data` - Send audio blob (base64 encoded)
+| Username | Password | Notes |
+|----------|----------|-------|
+| admin | 3ThreeIs1! | Steve (owner) |
+| drew | InfinitePumpkins | |
+| kim | MoonAndBack | |
+| emma | LoveYou3000 | |
 
-**Server → Client:**
-- `connected` - Connection established with session ID
-- `voice_ready` - Server ready for voice data
-- `transcription` - Transcribed text from user's audio
-- `ai_response_text` - AI text response
-- `audio_chunk` - Chunk of AI's spoken response (base64 MP3)
-- `audio_end` - Audio playback complete
-- `voice_error` - Error during voice processing
+- Usernames are auto-lowercased on login
+- Passwords are case-sensitive
+- Passwords stored as SHA-256 hashes
+
+## Configuration (config.json)
+
+```json
+{
+  "name": "EchoWix",
+  "avatar_name": "Steve",
+  "voice_id": "Yq69pIOf18GqcL1d3PUq",
+  "system_prompt_file": "personality.md",
+  "context_file": "context.md",
+  "model": "gpt-4o",
+  "call_model": "gpt-4o-mini",
+  "call_tts_model": "eleven_turbo_v2_5",
+  "max_history": 40,
+  "tts_model": "eleven_multilingual_v2",
+  "tts_settings": {
+    "stability": 0.35,
+    "similarity_boost": 0.9,
+    "style": 0.55,
+    "use_speaker_boost": true
+  }
+}
+```
+
+### Key Settings
+- **model**: Used for text chat responses (GPT-4o)
+- **call_model**: Used for voice call responses (GPT-4o-mini — faster, cheaper)
+- **call_tts_model**: TTS model for calls (`eleven_turbo_v2_5` — low latency)
+- **tts_model**: TTS model for click-to-play audio (`eleven_multilingual_v2` — higher quality)
+- **max_history**: Messages kept in conversation context (40)
+- **tts_settings**: ElevenLabs voice tuning parameters
+
+## Memory System
+
+### Layer 1: Core Identity (`context.md`)
+Always loaded. Contains who Steve is — family details, important dates, life events, favorites, opinions, stories, inside jokes. Edit this file to add/change Steve's permanent knowledge.
+
+### Layer 2: Per-Person Knowledge (`people/<username>.md`)
+Loaded only when that user is chatting. Pre-filled templates for each user. **Grows automatically** — memory extraction appends timestamped entries from conversations.
+
+### Layer 3: Dynamic Recall (`.memories/<username>.json`)
+Auto-extracted facts from every conversation using GPT-4o-mini (runs async in background). Keyword-searched each message — relevant memories injected into the prompt. Max 200 memories per user, max 8 injected per response.
+
+### How It Flows
+1. User sends message
+2. System builds prompt: personality + context.md + people/user.md + relevant memories + conversation history
+3. GPT responds
+4. Background: GPT-4o-mini extracts memorable facts → saves to `.memories/` + appends to `people/user.md`
+
+## TTS Cache
+
+Cached in `.tts_cache/` as MP3 files. Cache key = SHA-256 of (text + model + voice_id + settings). Text normalized (lowercase + trimmed). 30-day expiration. Saves ~30-50% on ElevenLabs credits with normal use.
+
+## API Credit Usage
+
+### Text Chat
+- **OpenAI only** — no ElevenLabs credits unless user clicks the audio bars
+- Memory extraction adds ~50 tokens per exchange (GPT-4o-mini, negligible cost)
+
+### Voice Calls
+- **OpenAI**: GPT-4o-mini per exchange (~cheap)
+- **ElevenLabs**: TTS per response (~80 chars per exchange)
+- Estimated: 4 users casual use ≈ 48% of ElevenLabs Pro plan (500K chars/mo)
+
+## Mobile / Remote Access
+
+### Local Network (text chat only)
+```
+http://<mac-ip>:7751
+```
+Voice calls won't work — browsers block mic access on HTTP.
+
+### Remote Access (full features)
+```bash
+brew install cloudflared
+cloudflared tunnel --url http://localhost:7751
+```
+Share the generated HTTPS URL. Kill with Ctrl+C when done.
+
+## Session Timeout
+Default: 2 hours. Override via `SESSION_TIMEOUT_MINUTES` in `.env`.
+
+## VAD Configuration (Voice Calls)
+- Silence threshold: 0.015 (trigger recording stop)
+- Silence duration: 1000ms
+- Interrupt threshold: 0.025 (higher to avoid speaker bleed)
+- 3+ consecutive frames above interrupt threshold → stops playback, captures new utterance
+
+## API Routes
+
+### HTTP
+- `GET /` — Main app (requires login)
+- `GET /login` — Login page
+- `POST /login` — Authenticate
+- `GET /logout` — End session
+- `GET /config` — Public config (name, model)
+- `POST /api/chat` — Text chat (streaming SSE)
+- `POST /api/tts` — Text-to-speech (returns audio/mpeg)
+- `POST /api/clear` — Clear conversation history
+
+### WebSocket (Socket.IO)
+- `call_start` → Server begins listening
+- `call_utterance` (base64 audio) → STT → GPT → TTS → `call_audio`
+- `call_interrupt` → Stop current playback
+- `call_end` → End call
+- `call_audio` ← Audio response chunks
+- `call_audio_end` ← Playback complete, resume listening
+- `call_resume` ← Ready for next utterance
 
 ## Troubleshooting
 
-### Mic Permission Denied
-- Browser is blocking microphone access
-- Solution: Check your browser's privacy settings for the localhost address
+### Mic blocked on mobile
+Use HTTPS (Cloudflare tunnel). Browsers block `getUserMedia` on HTTP.
 
-### API Errors
-- Verify API keys are correct in `.env`
-- Check OpenAI and ElevenLabs account quotas
-- Ensure voice_id matches your ElevenLabs clone
+### Choppy audio
+Uses HTML5 Audio elements (not Web Audio API `decodeAudioData`). If still choppy, check network latency.
 
-### Audio Not Playing
-- Check browser console for errors
-- Verify audio context is initialized
-- Test with a different browser
+### API key errors
+Verify `.env` has correct keys. Watch for copy-paste corruption (extra/missing characters).
 
-### WebSocket Connection Issues
-- Firewall may be blocking WebSocket connections
-- Try port 7751 in firewall rules
-- Check Flask-SocketIO is running (eventlet mode)
-
-## Development
-
-### Running in Debug Mode
-Edit `run.sh` or run directly:
-```bash
-source venv/bin/activate
-python app.py  # Runs with debug=True
-```
-
-### Modifying the UI
-Edit `templates/index.html` for layout/styling changes.
-
-### Changing AI Behavior
-Edit `config.json` to adjust the system prompt and voice settings.
-
-## Production Notes
-
-- Change `SECRET_KEY` in `.env` to a secure random value
-- Set `debug=False` in `app.py` before deploying
-- Use a production ASGI server (Gunicorn + eventlet instead of Flask dev server)
-- Consider using a reverse proxy (nginx) in front of Flask
-- Store `.env` securely outside the repository
-
-## API Rate Limits
-
-- OpenAI: Standard tier limits apply
-- ElevenLabs: Check your subscription for monthly character limits
-- Socket.IO: No built-in rate limiting; consider adding if needed
-
-## License
-
-Use as you like. Modify the system prompt and voice settings to make it your own!
-
----
-
-**Need help?** Check the console (F12) for errors. The backend logs will show what's happening server-side.
+### gevent/eventlet issues on macOS
+App uses gevent (not eventlet). If `kqueue` errors appear, ensure `gevent` is installed: `pip install gevent gevent-websocket`
