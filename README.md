@@ -213,6 +213,46 @@ Default: 2 hours. Override via `SESSION_TIMEOUT_MINUTES` in `.env`.
 - `call_audio_end` ← Playback complete, resume listening
 - `call_resume` ← Ready for next utterance
 
+## Things You Edit
+
+Quick reference for files you'll commonly change:
+
+| What | File | Notes |
+|---|---|---|
+| Steve's personality | `personality.md` | How he talks, what he says, tone. Restart after. |
+| Steve's core identity | `context.md` | Family, dates, favorites, stories, opinions. Restart after. |
+| Per-person knowledge | `people/<username>.md` | What Steve knows about each person. No restart needed. |
+| Call nudge phrases | `people/<username>.md` → `## Call Nudges` | What Steve says when they go silent. No restart. |
+| Call hangup phrases | `people/<username>.md` → `## Call Hangups` | What Steve says when auto-ending a call. No restart. |
+| User accounts | `users.json` | Add/remove users. Restart after. |
+| Voice/model settings | `config.json` | voice_id, models, TTS settings, max_history. Restart after. |
+| Session timeout | `.env` → `SESSION_TIMEOUT_MINUTES` | Default 120 (2 hours). Restart after. |
+| API keys | `.env` | `OPENAI_API_KEY`, `ELEVENLABS_API_KEY`, `SECRET_KEY`. Restart after. |
+| Sentence pause timing | `templates/index.html` → `SENTENCE_PAUSE_MS` | Default 400ms between sentences in calls. No restart (refresh page). |
+| Silence nudge timing | `templates/index.html` → `SILENCE_NUDGE_MS` | Default 10000ms (10s) before nudge. No restart (refresh page). |
+| UI icons | `static/img/` | Drop in new PNGs. No restart (refresh page). |
+
+### Voice Training (ElevenLabs)
+To improve the voice clone quality:
+1. Record 15-30 minutes of natural conversational audio (see training guide below)
+2. Upload to ElevenLabs → Your Voices → Edit → Add samples
+3. Voice ID stays the same — no code changes needed
+
+### Adding a New User
+1. Edit `users.json` (or let the app generate it on first run)
+2. Create `people/<username>.md` with their info, call nudges, and hangup phrases
+3. Restart the app
+
+### Training Guide
+Record yourself naturally — not reading, not presenting. Focus on:
+- **Stories** — tell something funny or emotional that happened
+- **Reactions** — react to something out loud ("no way", "seriously?", "hah")
+- **Emotional range** — happy, caring, sarcastic, serious, tired
+- **Fillers** — "yeah... yeah, I get that", "I mean... look...", "nah, you're good"
+- **Free ramble** — 5 minutes of unscripted talking about anything
+
+Upload as WAV or MP3 to ElevenLabs. More emotional variety > more total time.
+
 ## Troubleshooting
 
 ### Mic blocked on mobile
