@@ -5,6 +5,9 @@ Flask + flask-socketio backend for text chat and live phone-call-style voice
 Uses OpenAI GPT-4o, Whisper, and ElevenLabs TTS
 """
 
+import eventlet
+eventlet.monkey_patch()
+
 import json
 import os
 import base64
@@ -183,7 +186,8 @@ def chat():
             print(f"Chat error: {e}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
-    return Response(generate(), mimetype='text/event-stream')
+    return Response(generate(), mimetype='text/event-stream',
+                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 
 @app.route('/api/tts', methods=['POST'])
