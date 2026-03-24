@@ -26,6 +26,7 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+app.permanent_session_lifetime = int(os.getenv('SESSION_TIMEOUT_MINUTES', 120)) * 60  # default 2 hours
 socketio = SocketIO(app, async_mode='gevent', cors_allowed_origins="*")
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -328,6 +329,7 @@ def login():
         user = users.get(username)
         
         if user and user['password'] == _hash_pw(password):
+            session.permanent = True
             session['username'] = username
             session['display_name'] = user.get('display_name', username)
             session['role'] = user.get('role', 'user')
