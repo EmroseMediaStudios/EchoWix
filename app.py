@@ -114,16 +114,24 @@ def get_ai_response(sid, user_text):
     resp = openai.chat.completions.create(
         model=CONFIG.get('model', 'gpt-4o'),
         messages=messages,
-        temperature=0.7,
-        max_tokens=300,
+        temperature=0.85,
+        max_tokens=150,
     )
     ai_text = resp.choices[0].message.content
     add_message(sid, "assistant", ai_text)
     return ai_text
 
 
-def stream_tts(text):
-    """Generator that yields TTS audio chunks from ElevenLabs."""
+import re
+
+def split_sentences(text):
+    """Split text into sentences for incremental TTS."""
+    parts = re.split(r'(?<=[.!?])\s+', text.strip())
+    return [p for p in parts if p.strip()]
+
+
+def tts_full(text):
+    """Get complete TTS audio as bytes from ElevenLabs."""
     voice_id = CONFIG.get('voice_id')
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
     headers = {
@@ -144,13 +152,12 @@ def stream_tts(text):
         "output_format": "mp3_44100_192",
         "optimize_streaming_latency": 3,
     }
-    with httpx.stream("POST", url, headers=headers, json=payload, timeout=60) as r:
-        if r.status_code == 200:
-            for chunk in r.iter_bytes(chunk_size=2048):
-                yield chunk
-        else:
-            body = r.read()
-            print(f"TTS error: HTTP {r.status_code} — {body[:200]}")
+    resp = httpx.post(url, headers=headers, json=payload, timeout=60)
+    if resp.status_code == 200:
+        return resp.content
+    else:
+        print(f"TTS error: HTTP {resp.status_code} — {resp.content[:200]}")
+        return None
 
 
 # ---- ROUTES ----
@@ -210,7 +217,10 @@ def tts():
     if not text:
         return jsonify({"error": "Empty text"}), 400
     try:
-        return Response(stream_tts(text), mimetype='audio/mpeg')
+        audio = tts_full(text)
+        if audio:
+            return Response(audio, mimetype='audio/mpeg')
+        return jsonify({"error": "TTS failed"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -272,15 +282,13 @@ def handle_call_utterance(data):
         ai_text = get_ai_response(sid, user_text)
         emit('call_transcription', {'role': 'ai', 'text': ai_text})
 
-        # 3. TTS — collect full audio, then send as one piece for clean playback
-        audio_chunks = []
-        for chunk in stream_tts(ai_text):
-            audio_chunks.append(chunk)
-        
-        if audio_chunks:
-            full_audio = b''.join(audio_chunks)
-            b64 = base64.b64encode(full_audio).decode('utf-8')
-            emit('call_audio', {'data': b64})
+        # 3. TTS — sentence by sentence for faster first audio
+        sentences = split_sentences(ai_text)
+        for sentence in sentences:
+            audio = tts_full(sentence)
+            if audio:
+                b64 = base64.b64encode(audio).decode('utf-8')
+                emit('call_audio', {'data': b64})
 
         emit('call_audio_end')
 
