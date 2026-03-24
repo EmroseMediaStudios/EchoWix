@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>{{ app_name }}</title>
+    <link rel="icon" type="image/png" href="/static/img/logo.png">
+    <link rel="apple-touch-icon" href="/static/img/logo.png">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
@@ -100,7 +102,7 @@
             <button class="hdr-btn btn-call" id="callBtn" onclick="toggleCall()" title="Start call"><img src="/static/img/icon-call.png" class="btn-icon" onerror="this.style.display='none';this.parentElement.textContent='📞'"></button>
             <button class="hdr-btn btn-menu" onclick="toggleMenu()" title="Options"><img src="/static/img/icon-menu.png" class="btn-icon" onerror="this.style.display='none';this.parentElement.textContent='⚡'"></button>
         </div>
-        <div class="clear-menu" id="clearMenu"><button onclick="clearConversation();toggleMenu();"><img src="/static/img/icon-clear.png" class="menu-icon" onerror="this.style.display='none'"> Clear conversation</button></div>
+        <div class="clear-menu" id="clearMenu"><button onclick="clearConversation();toggleMenu();"><img src="/static/img/icon-clear.png" class="menu-icon" onerror="this.style.display='none'"> Clear conversation</button><button onclick="window.location.href='/logout'">🚪 Sign out</button></div>
     </div>
     <div class="messages" id="messages"></div>
     <div class="center-logo" id="centerLogo">
@@ -125,6 +127,7 @@
 </div>
 <script>
 const AN="{{ avatar_name }}";
+const STORAGE_KEY="echowix_history_{{ username|default('anon') }}";
 let socket=null,audioCtx=null,inCall=false,callStream=null,callRec=null;
 let timerInt=null,callSec=0,silTimer=null,chunks=[];
 let aQueue=[],aPlaying=false,analyser=null,vadOn=false;
@@ -297,10 +300,10 @@ function saveConversation(){
     const msgs=[];document.querySelectorAll('.msg-row').forEach(r=>{
         const role=r.classList.contains('user')?'user':'assistant',b=r.querySelector('.msg-bubble');
         if(b)msgs.push({role,content:b.childNodes[0].textContent.trim()});
-    });localStorage.setItem('echowix_history',JSON.stringify(msgs.slice(-40)));
+    });localStorage.setItem(STORAGE_KEY,JSON.stringify(msgs.slice(-40)));
 }
-function loadConversation(){try{const s=JSON.parse(localStorage.getItem('echowix_history')||'[]');for(const m of s)addMessage(m.role==='assistant'?'ai':'user',m.content);}catch(e){}}
-function clearConversation(){localStorage.removeItem('echowix_history');document.getElementById('messages').innerHTML='';checkLogo();fetch('/api/clear',{method:'POST'}).catch(()=>{});}
+function loadConversation(){try{const s=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');for(const m of s)addMessage(m.role==='assistant'?'ai':'user',m.content);}catch(e){}}
+function clearConversation(){localStorage.removeItem(STORAGE_KEY);document.getElementById('messages').innerHTML='';checkLogo();fetch('/api/clear',{method:'POST',credentials:'same-origin'}).catch(()=>{});}
 function toggleMenu(){document.getElementById('clearMenu').classList.toggle('show');}
 document.addEventListener('click',e=>{if(!e.target.closest('.btn-menu')&&!e.target.closest('.clear-menu'))document.getElementById('clearMenu').classList.remove('show');});
 </script>

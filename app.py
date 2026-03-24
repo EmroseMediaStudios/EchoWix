@@ -10,10 +10,13 @@ gevent.monkey.patch_all()
 
 import json
 import os
+import re
 import base64
+import hashlib
 import tempfile
+from functools import wraps
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, session, jsonify, Response
+from flask import Flask, render_template, request, session, jsonify, Response, redirect, url_for
 from flask_socketio import SocketIO, emit
 import openai
 import httpx
@@ -64,14 +67,56 @@ def _load_system_prompt():
 SYSTEM_PROMPT = _load_system_prompt()
 
 
-# ---- CONVERSATION MEMORY ----
+# ---- USER AUTH ----
+
+USERS_FILE = os.path.join(os.path.dirname(__file__), 'users.json')
+
+def _hash_pw(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def _load_users():
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+def _save_users(users):
+    with open(USERS_FILE, 'w') as f:
+        json.dump(users, f, indent=2)
+
+def _init_users():
+    """Create default users file if it doesn't exist."""
+    if not os.path.exists(USERS_FILE):
+        users = {
+            "admin": {"password": _hash_pw("admin"), "role": "admin", "display_name": "Admin"},
+            "user1": {"password": _hash_pw("user1"), "role": "user", "display_name": "User 1"},
+            "user2": {"password": _hash_pw("user2"), "role": "user", "display_name": "User 2"},
+            "user3": {"password": _hash_pw("user3"), "role": "user", "display_name": "User 3"},
+        }
+        _save_users(users)
+        print("Created default users.json — change passwords!")
+
+_init_users()
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'username' not in session:
+            if request.is_json or request.path.startswith('/api/') or request.path.startswith('/socket.io'):
+                return jsonify({"error": "Not authenticated"}), 401
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ---- CONVERSATION MEMORY (per-user) ----
 
 conversations = {}
 
-def get_session_id():
-    if 'sid' not in session:
-        session['sid'] = os.urandom(16).hex()
-    return session['sid']
+def get_user_sid():
+    """Session ID is the logged-in username — each user gets their own conversation."""
+    return session.get('username', 'anonymous')
 
 def get_conversation(sid):
     if sid not in conversations:
@@ -122,8 +167,6 @@ def get_ai_response(sid, user_text):
     return ai_text
 
 
-import re
-
 def split_sentences(text):
     """Split text into sentences for incremental TTS."""
     parts = re.split(r'(?<=[.!?])\s+', text.strip())
@@ -162,15 +205,50 @@ def tts_full(text):
 
 # ---- ROUTES ----
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        data = request.get_json() if request.is_json else request.form
+        username = data.get('username', '').strip().lower()
+        password = data.get('password', '')
+        
+        users = _load_users()
+        user = users.get(username)
+        
+        if user and user['password'] == _hash_pw(password):
+            session['username'] = username
+            session['display_name'] = user.get('display_name', username)
+            session['role'] = user.get('role', 'user')
+            if request.is_json:
+                return jsonify({"ok": True})
+            return redirect(url_for('index'))
+        
+        if request.is_json:
+            return jsonify({"error": "Invalid credentials"}), 401
+        return render_template('login.html',
+                               app_name=CONFIG.get('name', 'EchoWix'),
+                               error="Invalid username or password")
+    
+    return render_template('login.html', app_name=CONFIG.get('name', 'EchoWix'))
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+
 @app.route('/')
+@login_required
 def index():
-    get_session_id()
     return render_template('index.html',
                            app_name=CONFIG.get('name', 'EchoWix'),
-                           avatar_name=CONFIG.get('avatar_name', 'Steve'))
+                           avatar_name=CONFIG.get('avatar_name', 'Steve'),
+                           username=session.get('display_name', 'User'))
 
 
 @app.route('/api/chat', methods=['POST'])
+@login_required
 def chat():
     """Text chat with streaming SSE response."""
     data = request.get_json()
@@ -178,7 +256,7 @@ def chat():
     if not user_message:
         return jsonify({"error": "Empty message"}), 400
 
-    sid = get_session_id()
+    sid = get_user_sid()
     add_message(sid, "user", user_message)
     messages = [{"role": "system", "content": SYSTEM_PROMPT}] + get_history(sid)
 
@@ -189,14 +267,12 @@ def chat():
                 model=CONFIG.get('model', 'gpt-4o'),
                 messages=messages,
                 stream=True,
-                temperature=0.7,
-                max_tokens=300,
+                temperature=0.85,
+                max_tokens=150,
             )
             for chunk in stream:
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if delta and delta.content:
-                    full_part = delta.content
-                    full_part and None  # no-op
                     full += (delta.content or "")
                     yield f"data: {json.dumps({'text': delta.content})}\n\n"
             add_message(sid, "assistant", full)
@@ -210,6 +286,7 @@ def chat():
 
 
 @app.route('/api/tts', methods=['POST'])
+@login_required
 def tts():
     """One-shot TTS for playing an individual message."""
     data = request.get_json()
@@ -226,42 +303,35 @@ def tts():
 
 
 @app.route('/api/clear', methods=['POST'])
+@login_required
 def clear_conversation():
-    sid = get_session_id()
+    sid = get_user_sid()
     if sid in conversations:
         conversations[sid] = []
     return jsonify({"ok": True})
 
 
 # ---- WEBSOCKET: LIVE CALL ----
-# The client opens a continuous mic stream. When the user stops talking
-# (detected client-side via VAD / silence detection), the client sends
-# the accumulated audio blob. The server transcribes, gets GPT response,
-# and streams TTS audio back — then the client resumes listening for
-# the next utterance. This creates a continuous call feel.
 
 @socketio.on('connect')
 def handle_connect():
-    sid = get_session_id()
-    print(f"Client connected: {sid}")
+    if 'username' not in session:
+        return False  # reject unauthenticated WebSocket connections
+    sid = get_user_sid()
+    print(f"Client connected: {session['username']}")
     emit('connected', {'session_id': sid})
 
 
 @socketio.on('call_start')
 def handle_call_start():
-    """Client initiated a live call."""
-    print("Live call started")
+    print(f"Live call started by {session.get('username')}")
     emit('call_ready')
 
 
 @socketio.on('call_utterance')
 def handle_call_utterance(data):
-    """
-    Client sends a completed utterance (detected via silence/VAD).
-    audio: base64-encoded audio blob of the utterance.
-    """
     try:
-        sid = get_session_id()
+        sid = get_user_sid()
         audio_data = data.get('audio')
         if not audio_data:
             emit('call_error', {'error': 'No audio data'})
@@ -272,7 +342,6 @@ def handle_call_utterance(data):
         # 1. Transcribe
         user_text = transcribe_audio(audio_bytes)
         if not user_text:
-            # Silence or unintelligible — resume listening, don't respond
             emit('call_resume')
             return
 
@@ -299,19 +368,17 @@ def handle_call_utterance(data):
 
 @socketio.on('call_interrupt')
 def handle_call_interrupt():
-    """Client interrupted AI speech — stop any pending TTS streaming."""
-    print("Call interrupted by user")
+    print(f"Call interrupted by {session.get('username')}")
 
 
 @socketio.on('call_end')
 def handle_call_end():
-    """Client ended the call."""
-    print("Live call ended")
+    print(f"Live call ended by {session.get('username')}")
 
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    print("Client disconnected")
+    print(f"Client disconnected: {session.get('username')}")
 
 
 if __name__ == '__main__':
