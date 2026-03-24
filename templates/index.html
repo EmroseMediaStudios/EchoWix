@@ -190,7 +190,8 @@ function playTTS(el){
 function toggleCall(){if(inCall)endCall();else startCallFn();}
 async function startCallFn(){
     try{callStream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){alert('Microphone access denied. Voice calls require HTTPS — use the Cloudflare tunnel URL from your phone.');return;}
-    inCall=true;callSec=0;
+    await loadCallPhrases();
+    inCall=true;callSec=0;silenceNudgeCount=0;
     document.getElementById('callBtn').classList.add('active');
     document.getElementById('callOverlay').classList.add('active');
     document.getElementById('callTranscript').innerHTML='';
@@ -255,20 +256,26 @@ const SENTENCE_PAUSE_MS=400;
 const SILENCE_NUDGE_MS=10000;
 let silenceNudgeTimer=null;
 let silenceNudgeCount=0;
-const SILENCE_NUDGES=["you still there?","hello?","I can hear you breathing...","hey... you good?","you thinking or did I lose you?","...you fall asleep on me?"];
-const SILENCE_HANGUPS=["I think you disappeared on me... call me back when you want to talk.","alright, I think I lost you. I'm here whenever.","hey, I'm gonna let you go. Hit me up later.","looks like you're gone... talk soon, love you.","alright, guess you bounced. I'll be around.","I'll be here when you get back. Later."];
+const DEFAULT_NUDGES=["you still there?","hello?","I can hear you breathing...","hey... you good?","you thinking or did I lose you?","...you fall asleep on me?"];
+const DEFAULT_HANGUPS=["I think you disappeared on me... call me back when you want to talk.","alright, I think I lost you. I'm here whenever.","hey, I'm gonna let you go. Hit me up later.","looks like you're gone... talk soon, love you.","alright, guess you bounced. I'll be around.","I'll be here when you get back. Later."];
+let userNudges=null;
+let userHangups=null;
+async function loadCallPhrases(){
+    try{const r=await fetch('/api/call_phrases',{credentials:'same-origin'});const d=await r.json();userNudges=d.nudges||null;userHangups=d.hangups||null;}catch(e){userNudges=null;userHangups=null;}
+}
+function pickNudge(){const list=userNudges||DEFAULT_NUDGES;return list[Math.floor(Math.random()*list.length)];}
+function pickHangup(){const list=userHangups||DEFAULT_HANGUPS;return list[Math.floor(Math.random()*list.length)];}
 function startSilenceNudge(){
     clearSilenceNudge();
     silenceNudgeTimer=setTimeout(()=>{
         if(!inCall||aPlaying||aQueue.length>0)return;
         silenceNudgeCount++;
         if(silenceNudgeCount>=2){
-            // Second silence — hang up
-            const hangup=SILENCE_HANGUPS[Math.floor(Math.random()*SILENCE_HANGUPS.length)];
+            const hangup=pickHangup();
             socket.emit('call_utterance',{audio:null,nudge:hangup,auto_hangup:true});
             setCallSt('thinking');
         }else{
-            const nudge=SILENCE_NUDGES[Math.floor(Math.random()*SILENCE_NUDGES.length)];
+            const nudge=pickNudge();
             socket.emit('call_utterance',{audio:null,nudge:nudge});
             setCallSt('thinking');
         }

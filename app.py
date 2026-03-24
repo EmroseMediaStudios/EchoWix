@@ -100,6 +100,35 @@ def _load_person_context(username):
             pass
     return None
 
+def _parse_person_phrases(username, section_name):
+    """Parse a bullet list from a specific section in a person's .md file."""
+    person_path = os.path.join(os.path.dirname(__file__), 'people', f'{username}.md')
+    if not os.path.exists(person_path):
+        return []
+    try:
+        with open(person_path, 'r') as f:
+            lines = f.readlines()
+    except IOError:
+        return []
+    
+    phrases = []
+    in_section = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('## ') and section_name.lower() in stripped.lower():
+            in_section = True
+            continue
+        if in_section:
+            if stripped.startswith('## '):
+                break  # Next section
+            if stripped.startswith('<!--'):
+                continue
+            if stripped.startswith('- ') and len(stripped) > 2:
+                phrase = stripped[2:].strip()
+                if phrase and not phrase.startswith('['):
+                    phrases.append(phrase)
+    return phrases
+
 CONTEXT = _load_context()
 
 
@@ -627,6 +656,20 @@ def clear_conversation():
     sid = get_user_sid()
     clear_user_conversation(sid)
     return jsonify({"ok": True})
+
+
+@app.route('/api/call_phrases')
+@login_required
+def call_phrases():
+    """Return per-user silence nudges and hangup phrases."""
+    import random
+    username = session.get('username', 'anonymous')
+    nudges = _parse_person_phrases(username, 'Call Nudges')
+    hangups = _parse_person_phrases(username, 'Call Hangups')
+    return jsonify({
+        "nudges": nudges if nudges else None,
+        "hangups": hangups if hangups else None,
+    })
 
 
 # ---- WEBSOCKET: LIVE CALL ----
