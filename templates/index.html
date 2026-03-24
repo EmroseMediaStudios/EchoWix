@@ -83,7 +83,7 @@
         .clear-menu.show{display:block}
         .clear-menu button{display:block;width:100%;padding:7px 14px;background:transparent;border:none;color:var(--text2);font-size:0.8rem;cursor:pointer;border-radius:6px;text-align:left;font-family:inherit;white-space:nowrap}
         .clear-menu button:hover{background:rgba(255,255,255,0.05);color:var(--text1)}
-        @media(max-width:700px){.app-wrap{width:100vw;height:100vh;height:100dvh;max-width:100%}.logo-panel{display:none}.app-card{border-radius:0;border:none}.msg-row{max-width:88%}.messages{padding:14px}.input-bar{padding:10px 12px}}
+        @media(max-width:700px){.app-wrap{width:100vw;height:100vh;height:100dvh;max-width:100%}.logo-panel{display:none}.app-card{border-radius:0;border:none}.msg-row{max-width:88%}.messages{padding:14px}.input-bar{padding:10px 12px}.header-avatar,.hdr-av-fb{width:48px;height:48px}.hdr-btn,.hdr-btn-call{width:48px;height:48px}.hdr-btn img,.hdr-btn-call img{width:48px;height:48px}.msg-av,.msg-av-fb{width:40px;height:40px}.send-btn{width:44px;height:44px}.send-btn img{width:44px;height:44px}}
         @media(min-width:1300px){.app-wrap{max-width:1400px}.logo-panel{width:500px}.lp-logo{width:850px!important}.logo-call-btn{width:425px}}
     </style>
 </head>
@@ -185,7 +185,7 @@ function playTTS(el){
 }
 function toggleCall(){if(inCall)endCall();else startCallFn();}
 async function startCallFn(){
-    try{callStream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){return;}
+    try{callStream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){alert('Microphone access denied. Voice calls require HTTPS — use the Cloudflare tunnel URL from your phone.');return;}
     inCall=true;callSec=0;
     document.getElementById('callBtn').classList.add('active');
     document.getElementById('callOverlay').classList.add('active');
