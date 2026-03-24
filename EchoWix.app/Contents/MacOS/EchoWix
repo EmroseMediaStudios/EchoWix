@@ -3,6 +3,6 @@
 osascript -e '
 tell application "Terminal"
     activate
-    do script "cd ~/Desktop/EchoWix && eval \"$(/opt/homebrew/bin/brew shellenv zsh)\" 2>/dev/null && set -a && source .env && set +a && source .venv/bin/activate && echo \"\" && echo \"🔥 EchoWix\" && echo \"  http://localhost:7751\" && echo \"  Press Ctrl+C to stop\" && echo \"\" && (sleep 2 && open http://localhost:7751) & && python app.py"
+    do script "cd ~/Desktop/EchoWix && eval \"$(/opt/homebrew/bin/brew shellenv zsh)\" 2>/dev/null && set -a && source .env && set +a && source .venv/bin/activate && echo \"\" && echo \"🔥 EchoWix\" && echo \"  http://localhost:7751\" && echo \"  Press Ctrl+C to stop\" && echo \"\" && { sleep 2 && open http://localhost:7751 & }; python app.py"
 end tell
 '
