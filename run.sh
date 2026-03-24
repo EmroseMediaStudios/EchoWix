@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Voice Clone App Launch Script
+# EchoWix Launch Script
 # Creates virtual environment, installs deps, and starts the Flask app
 
 set -e
@@ -8,7 +8,7 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
-echo "🚀 Voice Clone App Launcher"
+echo "🚀 EchoWix Launcher"
 echo "================================"
 
 # Check if venv exists
@@ -36,7 +36,7 @@ fi
 
 # Start the app
 echo ""
-echo "✨ Starting Voice Clone app on http://localhost:7751"
+echo "✨ Starting EchoWix on http://localhost:7751"
 echo "🎤 Press Ctrl+C to stop"
 echo ""
 

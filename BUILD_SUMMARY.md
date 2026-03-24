@@ -1,4 +1,4 @@
-# 🔮 Voice Clone App - Build Summary
+# 🔮 EchoWix - Build Summary
 
 ## ✅ Build Complete
 
@@ -82,7 +82,7 @@ A complete voice-cloning chat/call web application with:
 ## 📁 Project Structure
 
 ```
-voice-clone-app/
+EchoWix/
 ├── app.py                  # Flask backend (315 lines)
 ├── config.json             # Personality config
 ├── .env.example            # API key template
@@ -100,7 +100,7 @@ voice-clone-app/
 
 ### 1. Setup
 ```bash
-cd voice-clone-app
+cd EchoWix
 cp .env.example .env
 # Edit .env with your API keys
 ```
@@ -128,14 +128,14 @@ Open browser to: `http://localhost:7751`
 2. **ElevenLabs API Key**
    - For voice cloning TTS
    - Get from: https://elevenlabs.io
-   - Must have a voice clone ID created first
+   - Must have a EchoWix voice ID created first
 
 ## 📝 Configuration Details
 
 ### config.json
 ```json
 {
-  "name": "AI Clone",                    // Display name
+  "name": "EchoWix",                    // Display name
   "voice_id": "PLACEHOLDER_VOICE_ID",   // Your ElevenLabs voice ID
   "system_prompt": "...",               // AI personality instructions
   "model": "gpt-4o",                    // OpenAI model
@@ -255,6 +255,6 @@ Refer to README.md for:
 ---
 
 **Status:** ✅ Complete and ready to run
-**Location:** `/home/ubuntu/.openclaw/workspace/voice-clone-app/`
+**Location:** `/home/ubuntu/.openclaw/workspace/EchoWix/`
 **Git Remote:** None (as specified - user will create)
 **Last Updated:** 2026-03-24 15:23 UTC

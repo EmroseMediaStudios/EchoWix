@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Voice Clone Chat/Call Web App
+EchoWix — Voice Chat/Call Web App
 Flask + flask-socketio backend for real-time chat and voice calling
 Uses OpenAI GPT-4o, Whisper, and ElevenLabs TTS
 """
@@ -41,7 +41,7 @@ def load_config():
             return json.load(f)
     except FileNotFoundError:
         return {
-            "name": "AI Clone",
+            "name": "EchoWix",
             "voice_id": "PLACEHOLDER_VOICE_ID",
             "system_prompt": "You are a conversational AI clone. Speak naturally and casually, like a real person in a phone conversation. Keep responses concise — 2-3 sentences max unless asked to elaborate. Be warm, authentic, and engaging. Don't be overly formal or robotic.",
             "model": "gpt-4o",
@@ -94,7 +94,7 @@ def get_recent_history(session_id, include_current=False):
 def index():
     """Serve the main app"""
     get_session_id()  # Initialize session
-    return render_template('index.html', app_name=CONFIG.get('name', 'AI Clone'))
+    return render_template('index.html', app_name=CONFIG.get('name', 'EchoWix'))
 
 @app.route('/config')
 def get_config():
@@ -313,6 +313,6 @@ def handle_disconnect():
     print("Client disconnected")
 
 if __name__ == '__main__':
-    print(f"Starting Voice Clone app on port 7751...")
+    print(f"Starting EchoWix on port 7751...")
     print(f"Personality: {CONFIG.get('name')}")
     socketio.run(app, host='0.0.0.0', port=7751, debug=True)

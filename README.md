@@ -1,4 +1,4 @@
-# 🔮 Voice Clone Chat/Call Web App
+# 🔮 EchoWix — Voice Chat/Call
 
 A Flask-based web application that enables real-time text chat and voice calls with an AI personality using your cloned voice via ElevenLabs TTS.
 
@@ -32,7 +32,7 @@ A Flask-based web application that enables real-time text chat and voice calls w
 ### 1. Clone and Navigate
 
 ```bash
-cd /home/ubuntu/.openclaw/workspace/voice-clone-app
+cd /home/ubuntu/.openclaw/workspace/EchoWix
 ```
 
 ### 2. Configure API Keys
@@ -51,7 +51,7 @@ Fill in your API keys:
 
 Edit `config.json` to customize:
 - `name`: AI personality name
-- `voice_id`: Your ElevenLabs voice clone ID (replace `PLACEHOLDER_VOICE_ID`)
+- `voice_id`: Your ElevenLabs EchoWix voice ID (replace `PLACEHOLDER_VOICE_ID`)
 - `system_prompt`: Custom personality/behavior instructions
 - `tts_settings`: Voice settings (stability, similarity, style)
 
@@ -100,7 +100,7 @@ Open your browser and navigate to: `http://localhost:7751`
 ## File Structure
 
 ```
-voice-clone-app/
+EchoWix/
 ├── app.py                  # Flask backend + WebSocket handlers
 ├── config.json             # Personality/voice configuration
 ├── .env.example            # API key template
@@ -118,7 +118,7 @@ voice-clone-app/
 ### config.json
 
 - **name**: Display name for the AI personality
-- **voice_id**: Your ElevenLabs voice clone ID
+- **voice_id**: Your ElevenLabs EchoWix voice ID
 - **system_prompt**: Instructions for AI behavior/tone
 - **model**: OpenAI model (default: gpt-4o)
 - **max_history**: Number of recent messages to keep for context (default: 20)
