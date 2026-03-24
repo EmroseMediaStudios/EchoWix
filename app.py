@@ -69,6 +69,34 @@ def _load_system_prompt():
 SYSTEM_PROMPT = _load_system_prompt()
 
 
+# ---- CONTEXT / MEMORIES ----
+# Load optional context file with stories, events, reference material.
+# This gets injected alongside the system prompt to give Steve depth.
+
+def _load_context():
+    context_file = CONFIG.get("context_file", "context.md")
+    context_path = os.path.join(os.path.dirname(__file__), context_file)
+    if os.path.exists(context_path):
+        try:
+            with open(context_path, 'r') as f:
+                content = f.read().strip()
+                if content:
+                    return content
+        except IOError:
+            pass
+    return None
+
+CONTEXT = _load_context()
+
+def build_messages(sid):
+    """Build the full message list with system prompt + context + history."""
+    msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
+    if CONTEXT:
+        msgs.append({"role": "system", "content": f"Here are memories, stories, and context you can draw from naturally in conversation. Don't dump these unprompted — weave them in when relevant, like a real person recalling something:\n\n{CONTEXT}"})
+    msgs.extend(get_history(sid))
+    return msgs
+
+
 # ---- USER AUTH ----
 
 USERS_FILE = os.path.join(os.path.dirname(__file__), 'users.json')
@@ -112,25 +140,45 @@ def login_required(f):
     return decorated
 
 
-# ---- CONVERSATION MEMORY (per-user) ----
+# ---- CONVERSATION MEMORY (per-user, persisted to disk) ----
 
-conversations = {}
+CONV_DIR = os.path.join(os.path.dirname(__file__), '.conversations')
+os.makedirs(CONV_DIR, exist_ok=True)
 
 def get_user_sid():
     """Session ID is the logged-in username — each user gets their own conversation."""
     return session.get('username', 'anonymous')
 
+def _conv_path(sid):
+    return os.path.join(CONV_DIR, f"{sid}.json")
+
 def get_conversation(sid):
-    if sid not in conversations:
-        conversations[sid] = []
-    return conversations[sid]
+    path = _conv_path(sid)
+    if os.path.exists(path):
+        try:
+            with open(path, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return []
+    return []
+
+def _save_conversation(sid, conv):
+    path = _conv_path(sid)
+    with open(path, 'w') as f:
+        json.dump(conv, f)
 
 def add_message(sid, role, content):
     conv = get_conversation(sid)
     conv.append({"role": role, "content": content})
-    mx = CONFIG.get('max_history', 20)
+    mx = CONFIG.get('max_history', 40)
     if len(conv) > mx:
-        conversations[sid] = conv[-mx:]
+        conv = conv[-mx:]
+    _save_conversation(sid, conv)
+
+def clear_user_conversation(sid):
+    path = _conv_path(sid)
+    if os.path.exists(path):
+        os.unlink(path)
 
 def get_history(sid):
     return get_conversation(sid)
@@ -157,12 +205,12 @@ def transcribe_audio(audio_bytes):
 def get_ai_response(sid, user_text):
     """Get GPT response and add to conversation (for text chat)."""
     add_message(sid, "user", user_text)
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + get_history(sid)
+    messages = build_messages(sid)
     resp = openai.chat.completions.create(
         model=CONFIG.get('model', 'gpt-4o'),
         messages=messages,
         temperature=0.85,
-        max_tokens=150,
+        max_tokens=500,
     )
     ai_text = resp.choices[0].message.content
     add_message(sid, "assistant", ai_text)
@@ -172,7 +220,7 @@ def get_ai_response(sid, user_text):
 def stream_ai_sentences(sid, user_text):
     """Stream GPT response and yield complete sentences as they form."""
     add_message(sid, "user", user_text)
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + get_history(sid)
+    messages = build_messages(sid)
     
     call_model = CONFIG.get('call_model', 'gpt-4o-mini')
     stream = openai.chat.completions.create(
@@ -180,7 +228,7 @@ def stream_ai_sentences(sid, user_text):
         messages=messages,
         stream=True,
         temperature=0.85,
-        max_tokens=150,
+        max_tokens=200,
     )
     
     buffer = ""
@@ -372,7 +420,7 @@ def chat():
 
     sid = get_user_sid()
     add_message(sid, "user", user_message)
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + get_history(sid)
+    messages = build_messages(sid)
 
     def generate():
         full = ""
@@ -382,7 +430,7 @@ def chat():
                 messages=messages,
                 stream=True,
                 temperature=0.85,
-                max_tokens=150,
+                max_tokens=500,
             )
             for chunk in stream:
                 delta = chunk.choices[0].delta if chunk.choices else None
@@ -420,8 +468,7 @@ def tts():
 @login_required
 def clear_conversation():
     sid = get_user_sid()
-    if sid in conversations:
-        conversations[sid] = []
+    clear_user_conversation(sid)
     return jsonify({"ok": True})
 
 

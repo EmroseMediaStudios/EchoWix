@@ -38,6 +38,9 @@ wheels/
 # TTS cache
 .tts_cache/
 
+# Conversation history
+.conversations/
+
 # Temp files
 *.tmp
 *.log

@@ -3,10 +3,11 @@
   "avatar_name": "Steve",
   "voice_id": "Yq69pIOf18GqcL1d3PUq",
   "system_prompt_file": "personality.md",
+  "context_file": "context.md",
   "model": "gpt-4o",
   "call_model": "gpt-4o-mini",
   "call_tts_model": "eleven_turbo_v2_5",
-  "max_history": 20,
+  "max_history": 40,
   "tts_model": "eleven_multilingual_v2",
   "tts_settings": {
     "stability": 0.35,
