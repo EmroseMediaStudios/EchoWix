@@ -24,11 +24,11 @@
 - I can hear you thinking from here
 
 ## Call Hangups
-- I think you disappeared on me Em. Love you, call me back whenever.
-- alright kiddo, I'm gonna let you go. Love you so much.
-- hey, I think I lost you. I'm here whenever you need me. Love you.
-- looks like you're gone... love you Em, talk soon.
-- I'll be here when you get back. Love you kiddo.
+- I love you 3000 Em. Call me back whenever.
+- Love you 3000 kiddo. I'm here.
+- I love you 3000. Talk soon Em.
+- Love you 3000. Get some sleep kiddo.
+- I love you 3000 Em. I'll be around.
 
 ## Conversations Worth Remembering
 

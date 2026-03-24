@@ -24,11 +24,11 @@
 - you thinking or did you walk away?
 
 ## Call Hangups
-- I think you disappeared on me babe. Love you, call me back.
-- alright, I'm gonna let you go. Love you.
-- hey, I think I lost you. I'm here whenever. Love you.
-- looks like you're gone... talk soon babe. Love you.
-- I'll be here when you get back. Love you.
+- I love you to the moon and back. Talk soon babe.
+- Love you to the moon and back. Call me whenever.
+- I love you to the moon and back babe. I'm here.
+- Love you to the moon and back. Get some rest.
+- I love you to the moon and back. Later babe.
 
 ## Conversations Worth Remembering
 
