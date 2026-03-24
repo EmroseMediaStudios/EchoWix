@@ -10,133 +10,120 @@
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
-        :root{
-            --bg:#06081a;--bg2:#0a0e2a;--bg3:#101540;
-            --glass:rgba(10,14,42,0.7);--glass2:rgba(16,21,64,0.5);
-            --glass-border:rgba(59,130,246,0.12);--glass-border2:rgba(99,102,241,0.15);
-            --border:#161b3d;--text1:#e2e8f0;--text2:#94a3b8;--text3:#475569;
-            --blue:#3b82f6;--blue-light:#60a5fa;--blue-glow:rgba(59,130,246,0.3);
-            --orange:#f97316;--orange-light:#fb923c;--orange-glow:rgba(249,115,22,0.3);
-            --red:#ef4444;--green:#22c55e;
-            --user-bubble:rgba(59,130,246,0.1);--user-border:rgba(59,130,246,0.2);
-            --ai-bubble:rgba(16,21,64,0.7);--ai-border:rgba(30,38,80,0.6);
-        }
+        :root{--bg:#06081a;--bg2:#0a0e2a;--bg3:#101540;--glass:rgba(10,14,42,0.7);--glass-border:rgba(59,130,246,0.12);--glass-border2:rgba(99,102,241,0.15);--border:#161b3d;--text1:#e2e8f0;--text2:#94a3b8;--text3:#475569;--blue:#3b82f6;--blue-light:#60a5fa;--blue-glow:rgba(59,130,246,0.3);--orange:#f97316;--orange-light:#fb923c;--orange-glow:rgba(249,115,22,0.3);--red:#ef4444;--green:#22c55e;--user-bubble:rgba(59,130,246,0.1);--user-border:rgba(59,130,246,0.2);--ai-bubble:rgba(16,21,64,0.7);--ai-border:rgba(30,38,80,0.6)}
         body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--text1);min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;overflow:hidden}
         body::before{content:'';position:fixed;top:-30%;left:40%;width:80%;height:60%;background:radial-gradient(ellipse,rgba(59,130,246,0.07) 0%,transparent 65%);pointer-events:none}
         body::after{content:'';position:fixed;bottom:-20%;right:30%;width:70%;height:50%;background:radial-gradient(ellipse,rgba(249,115,22,0.05) 0%,transparent 65%);pointer-events:none}
-        .app-card{position:relative;z-index:1;width:92vw;max-width:960px;height:80vh;height:80dvh;display:flex;flex-direction:column;background:var(--glass);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border:1px solid var(--glass-border);border-radius:20px;box-shadow:0 0 80px rgba(59,130,246,0.06),0 0 160px rgba(249,115,22,0.03),inset 0 1px 0 rgba(255,255,255,0.03);overflow:hidden}
-        .header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid var(--glass-border);background:rgba(6,8,26,0.4);flex-shrink:0}
-        .header-left{display:flex;align-items:center;gap:12px}
-        .header-avatar{width:38px;height:38px;border-radius:10px;object-fit:cover;border:1px solid var(--glass-border2)}
-        .hdr-av-fb{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--blue),var(--orange));display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
-        .header-info .title{font-size:1.1rem;font-weight:700;letter-spacing:-0.3px;background:linear-gradient(135deg,var(--text1),var(--blue-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-        .header-info .sub{font-size:0.7rem;color:var(--text3);display:flex;align-items:center;gap:5px;margin-top:1px}
+        .app-wrap{position:relative;z-index:1;display:flex;align-items:center;gap:0;width:92vw;max-width:1100px;height:80vh;height:80dvh}
+        .logo-panel{flex-shrink:0;width:220px;display:flex;align-items:center;justify-content:center;position:relative}
+        .logo-panel img{width:180px;height:auto;opacity:0.18;filter:blur(0.3px);pointer-events:none}
+        .logo-panel::after{content:'';position:absolute;inset:0;background:radial-gradient(circle,rgba(249,115,22,0.06) 0%,transparent 70%);pointer-events:none}
+        .app-card{flex:1;height:100%;display:flex;flex-direction:column;background:var(--glass);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border:1px solid var(--glass-border);border-radius:20px;box-shadow:0 0 80px rgba(59,130,246,0.06),0 0 160px rgba(249,115,22,0.03),inset 0 1px 0 rgba(255,255,255,0.03);overflow:hidden;position:relative}
+        .header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--glass-border);background:rgba(6,8,26,0.4);flex-shrink:0}
+        .header-left{display:flex;align-items:center;gap:10px}
+        .header-avatar{width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid rgba(99,102,241,0.2);box-shadow:0 0 12px rgba(99,102,241,0.1)}
+        .hdr-av-fb{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--orange));display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+        .header-info .title{font-size:1rem;font-weight:700;letter-spacing:-0.3px;background:linear-gradient(135deg,var(--text1),var(--blue-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+        .header-info .sub{font-size:0.68rem;color:var(--text3);display:flex;align-items:center;gap:5px;margin-top:1px}
         .dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px rgba(34,197,94,0.5)}
-        .header-right{display:flex;gap:8px;align-items:center}
-        .hdr-btn{width:38px;height:38px;border-radius:10px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all 0.2s;overflow:hidden;flex-shrink:0;background:transparent}
-        .hdr-btn:hover{transform:scale(1.08)}
-        .btn-icon{width:38px;height:38px;object-fit:cover;border-radius:10px}
-        .btn-icon-lg{width:64px;height:64px;object-fit:cover;border-radius:50%}
-        .menu-icon{width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px}
-        .chat-body{flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column}
-        .bg-logo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:340px;height:auto;opacity:0.12;pointer-events:none;z-index:0;filter:blur(0.5px);transition:opacity 0.5s}
-        .bg-logo.has-msgs{opacity:0.06}
-        .messages{flex:1;overflow-y:auto;padding:24px 28px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth;position:relative;z-index:1}
-        .messages::-webkit-scrollbar{width:4px}.messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-        .msg-row{display:flex;gap:10px;max-width:70%;animation:mi 0.3s ease}
+        .header-right{display:flex;gap:6px;align-items:center}
+        .hdr-btn{width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,0.06);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all 0.2s;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,0.03)}
+        .hdr-btn:hover{background:rgba(255,255,255,0.08);transform:scale(1.05);border-color:rgba(255,255,255,0.1)}
+        .hdr-btn img{width:34px;height:34px;object-fit:cover;border-radius:50%}
+        .messages{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth;position:relative;z-index:1}
+        .messages::-webkit-scrollbar{width:3px}.messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+        .msg-row{display:flex;gap:10px;max-width:75%;animation:mi 0.3s ease}
         .msg-row.ai{align-self:flex-start}.msg-row.user{align-self:flex-end;flex-direction:row-reverse}
-        @keyframes mi{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-        .msg-av{width:34px;height:34px;border-radius:8px;object-fit:cover;flex-shrink:0;margin-top:2px}
-        .msg-av-fb{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,var(--blue),var(--orange));display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;margin-top:2px}
-        .msg-body{display:flex;flex-direction:column;gap:4px}
-        .msg-bubble{padding:11px 16px;border-radius:14px;font-size:0.9rem;line-height:1.55;word-wrap:break-word}
+        @keyframes mi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+        .msg-av{width:30px;height:30px;border-radius:50%;object-fit:cover;flex-shrink:0;margin-top:2px;border:1.5px solid rgba(255,255,255,0.06);box-shadow:0 0 8px rgba(0,0,0,0.3)}
+        .msg-av-fb{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--orange));display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;margin-top:2px}
+        .msg-body{display:flex;flex-direction:column;gap:3px}
+        .msg-bubble{padding:10px 14px;border-radius:16px;font-size:0.88rem;line-height:1.55;word-wrap:break-word}
         .msg-row.ai .msg-bubble{background:var(--ai-bubble);border:1px solid var(--ai-border);border-top-left-radius:4px}
         .msg-row.user .msg-bubble{background:var(--user-bubble);border:1px solid var(--user-border);border-top-right-radius:4px}
-        .msg-meta{font-size:0.68rem;color:var(--text3);padding:0 4px}.msg-row.user .msg-meta{text-align:right}
-        .abtn{display:inline-flex;align-items:center;gap:2px;margin-left:8px;cursor:pointer;opacity:0.4;transition:opacity 0.2s;vertical-align:middle}
-        .abtn:hover{opacity:1}.abtn .b{width:3px;border-radius:2px;background:var(--orange);display:inline-block}
-        .abtn .b:nth-child(1){height:8px}.abtn .b:nth-child(2){height:14px}.abtn .b:nth-child(3){height:10px}.abtn .b:nth-child(4){height:16px}.abtn .b:nth-child(5){height:8px}
+        .msg-meta{font-size:0.65rem;color:var(--text3);padding:0 4px}.msg-row.user .msg-meta{text-align:right}
+        .abtn{display:inline-flex;align-items:center;gap:2px;margin-left:8px;cursor:pointer;opacity:0.35;transition:opacity 0.2s;vertical-align:middle}
+        .abtn:hover{opacity:1}.abtn .b{width:2.5px;border-radius:2px;background:var(--orange);display:inline-block}
+        .abtn .b:nth-child(1){height:7px}.abtn .b:nth-child(2){height:12px}.abtn .b:nth-child(3){height:9px}.abtn .b:nth-child(4){height:14px}.abtn .b:nth-child(5){height:7px}
         .abtn.playing .b{animation:bp .5s ease-in-out infinite alternate}
         .abtn.playing .b:nth-child(2){animation-delay:.08s}.abtn.playing .b:nth-child(3){animation-delay:.16s}.abtn.playing .b:nth-child(4){animation-delay:.24s}.abtn.playing .b:nth-child(5){animation-delay:.32s}
         @keyframes bp{from{transform:scaleY(.5)}to{transform:scaleY(1.3)}}
         .typing-row{display:flex;gap:10px;align-self:flex-start}
-        .typing-dots{display:flex;gap:4px;padding:12px 16px;background:var(--ai-bubble);border:1px solid var(--ai-border);border-radius:14px;border-top-left-radius:4px}
-        .typing-dots span{width:7px;height:7px;border-radius:50%;background:var(--orange);animation:db 1.4s ease-in-out infinite}
+        .typing-dots{display:flex;gap:4px;padding:10px 14px;background:var(--ai-bubble);border:1px solid var(--ai-border);border-radius:16px;border-top-left-radius:4px}
+        .typing-dots span{width:6px;height:6px;border-radius:50%;background:var(--orange);animation:db 1.4s ease-in-out infinite}
         .typing-dots span:nth-child(2){animation-delay:.15s}.typing-dots span:nth-child(3){animation-delay:.3s}
-        @keyframes db{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-6px)}}
-        .input-bar{display:flex;align-items:center;gap:10px;padding:14px 20px;border-top:1px solid var(--glass-border);background:rgba(6,8,26,0.5);flex-shrink:0}
-        .text-input{flex:1;background:rgba(16,21,64,0.5);border:1px solid var(--border);color:var(--text1);padding:11px 16px;border-radius:24px;font-size:0.9rem;font-family:inherit;outline:none;transition:all 0.2s}
-        .text-input:focus{border-color:rgba(59,130,246,0.35);box-shadow:0 0 12px rgba(59,130,246,0.15)}
+        @keyframes db{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-5px)}}
+        .input-bar{display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid var(--glass-border);background:rgba(6,8,26,0.5);flex-shrink:0}
+        .text-input{flex:1;background:rgba(16,21,64,0.4);border:1px solid var(--border);color:var(--text1);padding:10px 16px;border-radius:24px;font-size:0.88rem;font-family:inherit;outline:none;transition:all 0.2s}
+        .text-input:focus{border-color:rgba(59,130,246,0.3);box-shadow:0 0 10px rgba(59,130,246,0.12)}
         .text-input::placeholder{color:var(--text3)}
-        .send-btn{width:42px;height:42px;border-radius:50%;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;overflow:hidden}
-        .send-btn:hover{transform:scale(1.08)}
-        .send-btn img{width:42px;height:42px;object-fit:cover;border-radius:50%}
-        .send-btn-fb{color:var(--text3);font-size:18px}
-        .call-overlay{display:none;position:absolute;inset:0;z-index:20;background:rgba(6,8,26,0.94);backdrop-filter:blur(24px);flex-direction:column;align-items:center;justify-content:center;gap:24px}
+        .send-btn{width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;overflow:hidden}
+        .send-btn:hover{background:rgba(255,255,255,0.08);transform:scale(1.05)}
+        .send-btn img{width:36px;height:36px;object-fit:cover;border-radius:50%}
+        .call-overlay{display:none;position:absolute;inset:0;z-index:20;background:rgba(6,8,26,0.94);backdrop-filter:blur(24px);flex-direction:column;align-items:center;justify-content:center;gap:20px}
         .call-overlay.active{display:flex}
-        .call-avatar{width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid var(--blue);box-shadow:0 0 40px var(--blue-glow)}
-        .call-av-fb{width:120px;height:120px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--orange));display:flex;align-items:center;justify-content:center;font-size:48px;border:3px solid var(--blue);box-shadow:0 0 40px var(--blue-glow)}
-        .call-name{font-size:1.5rem;font-weight:700;color:var(--text1)}
-        .call-status{font-size:0.85rem;color:var(--text2)}
+        .call-avatar{width:110px;height:110px;border-radius:50%;object-fit:cover;border:2px solid var(--blue);box-shadow:0 0 40px var(--blue-glow)}
+        .call-av-fb{width:110px;height:110px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--orange));display:flex;align-items:center;justify-content:center;font-size:44px;border:2px solid var(--blue);box-shadow:0 0 40px var(--blue-glow)}
+        .call-name{font-size:1.4rem;font-weight:700}.call-status{font-size:0.82rem;color:var(--text2)}
         .call-status.listening{color:var(--green)}.call-status.thinking{color:var(--blue-light)}.call-status.speaking{color:var(--orange)}
-        .call-timer{font-size:0.78rem;color:var(--text3);font-variant-numeric:tabular-nums}
+        .call-timer{font-size:0.75rem;color:var(--text3);font-variant-numeric:tabular-nums}
         .caw{position:relative}.caw::after{content:'';position:absolute;inset:-8px;border-radius:50%;border:2px solid transparent;transition:all .3s}
         .caw.listening::after{border-color:var(--green);box-shadow:0 0 20px rgba(34,197,94,0.3)}
         .caw.speaking::after{border-color:var(--orange);box-shadow:0 0 20px var(--orange-glow);animation:cp 1s ease-in-out infinite}
         .caw.thinking::after{border-color:var(--blue);box-shadow:0 0 20px var(--blue-glow)}
         @keyframes cp{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
-        .call-transcript{max-width:80%;text-align:center;font-size:0.85rem;color:var(--text2);min-height:2.5em;line-height:1.5}
+        .call-transcript{max-width:80%;text-align:center;font-size:0.82rem;color:var(--text2);min-height:2.5em;line-height:1.5}
         .call-transcript .at{color:var(--orange-light)}
-        .call-hangup{width:64px;height:64px;border-radius:50%;border:none;background:linear-gradient(135deg,var(--red),#dc2626);color:#fff;font-size:24px;cursor:pointer;transition:all .2s;box-shadow:0 0 30px rgba(239,68,68,0.3);overflow:hidden}
+        .call-hangup{width:58px;height:58px;border-radius:50%;border:none;background:linear-gradient(135deg,var(--red),#dc2626);color:#fff;cursor:pointer;transition:all .2s;box-shadow:0 0 30px rgba(239,68,68,0.3);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:22px}
         .call-hangup:hover{transform:scale(1.1);box-shadow:0 0 40px rgba(239,68,68,0.5)}
-        .clear-menu{display:none;position:absolute;top:58px;right:16px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:6px;z-index:30;box-shadow:0 8px 30px rgba(0,0,0,0.5)}
+        .call-hangup img{width:58px;height:58px;object-fit:cover;border-radius:50%}
+        .clear-menu{display:none;position:absolute;top:52px;right:12px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:5px;z-index:30;box-shadow:0 8px 30px rgba(0,0,0,0.5)}
         .clear-menu.show{display:block}
-        .clear-menu button{display:block;width:100%;padding:8px 16px;background:transparent;border:none;color:var(--text2);font-size:0.82rem;cursor:pointer;border-radius:6px;text-align:left;font-family:inherit;white-space:nowrap}
+        .clear-menu button{display:block;width:100%;padding:7px 14px;background:transparent;border:none;color:var(--text2);font-size:0.8rem;cursor:pointer;border-radius:6px;text-align:left;font-family:inherit;white-space:nowrap}
         .clear-menu button:hover{background:rgba(255,255,255,0.05);color:var(--text1)}
-        @media(max-width:700px){.app-card{width:100vw;height:100vh;height:100dvh;border-radius:0;border:none;max-width:100%}.bg-logo{width:200px}.msg-row{max-width:88%}.messages{padding:16px}.input-bar{padding:10px 12px}}
-        @media(min-width:1200px){.app-card{max-width:1100px;height:75vh}}
+        @media(max-width:700px){.app-wrap{width:100vw;height:100vh;height:100dvh;max-width:100%}.logo-panel{display:none}.app-card{border-radius:0;border:none}.msg-row{max-width:88%}.messages{padding:14px}.input-bar{padding:10px 12px}}
+        @media(min-width:1300px){.app-wrap{max-width:1200px}.logo-panel{width:260px}.logo-panel img{width:220px}}
     </style>
 </head>
 <body>
-<div class="app-card">
-    <div class="header">
-        <div class="header-left">
-            <img src="/static/img/avatar.png" class="header-avatar" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-            <div class="hdr-av-fb" style="display:none">🔥</div>
-            <div class="header-info"><div class="title">{{ app_name }}</div><div class="sub"><span class="dot"></span>{{ avatar_name }} · Online</div></div>
+<div class="app-wrap">
+    <div class="logo-panel"><img src="/static/img/logo.png" onerror="this.style.display='none'"></div>
+    <div class="app-card">
+        <div class="header">
+            <div class="header-left">
+                <img src="/static/img/avatar.png" class="header-avatar" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                <div class="hdr-av-fb" style="display:none">🔥</div>
+                <div class="header-info"><div class="title">{{ app_name }}</div><div class="sub"><span class="dot"></span>{{ avatar_name }} · Online</div></div>
+            </div>
+            <div class="header-right">
+                <button class="hdr-btn" id="callBtn" onclick="toggleCall()" title="Call"><img src="/static/img/icon-call.png" onerror="this.style.display='none';this.parentElement.textContent='📞'"></button>
+                <button class="hdr-btn" onclick="toggleMenu()" title="Menu"><img src="/static/img/icon-menu.png" onerror="this.style.display='none';this.parentElement.textContent='⚡'"></button>
+            </div>
+            <div class="clear-menu" id="clearMenu">
+                <button onclick="clearConversation();toggleMenu();">🗑 Clear conversation</button>
+                <button onclick="window.location.href='/logout'">🚪 Sign out</button>
+            </div>
         </div>
-        <div class="header-right">
-            <button class="hdr-btn" id="callBtn" onclick="toggleCall()" title="Start call"><img src="/static/img/icon-call.png" class="btn-icon" onerror="this.style.display='none';this.parentElement.innerHTML='📞'"></button>
-            <button class="hdr-btn" onclick="toggleMenu()" title="Options"><img src="/static/img/icon-menu.png" class="btn-icon" onerror="this.style.display='none';this.parentElement.innerHTML='⚡'"></button>
-        </div>
-        <div class="clear-menu" id="clearMenu">
-            <button onclick="clearConversation();toggleMenu();"><img src="/static/img/icon-clear.png" class="menu-icon" onerror="this.style.display='none'"> Clear conversation</button>
-            <button onclick="window.location.href='/logout'">🚪 Sign out</button>
-        </div>
-    </div>
-    <div class="chat-body">
-        <img src="/static/img/logo.png" class="bg-logo" id="bgLogo" onerror="this.style.display='none'">
         <div class="messages" id="messages"></div>
-    </div>
-    <div class="input-bar">
-        <input type="text" class="text-input" id="textInput" placeholder="Message {{ avatar_name }}..." autocomplete="off">
-        <button class="send-btn" onclick="sendMessage()" title="Send"><img src="/static/img/icon-send.png" onerror="this.style.display='none';this.parentElement.innerHTML='<span class=send-btn-fb>➤</span>'"></button>
-    </div>
-    <div class="call-overlay" id="callOverlay">
-        <div class="caw" id="caw">
-            <img src="/static/img/avatar.png" class="call-avatar" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-            <div class="call-av-fb" style="display:none">🔥</div>
+        <div class="input-bar">
+            <input type="text" class="text-input" id="textInput" placeholder="Message {{ avatar_name }}..." autocomplete="off">
+            <button class="send-btn" onclick="sendMessage()" title="Send"><img src="/static/img/icon-send.png" onerror="this.style.display='none';this.parentElement.textContent='➤'"></button>
         </div>
-        <div class="call-name">{{ avatar_name }}</div>
-        <div class="call-status" id="callStatus">Connecting...</div>
-        <div class="call-timer" id="callTimer">0:00</div>
-        <div class="call-transcript" id="callTranscript"></div>
-        <button class="call-hangup" onclick="endCall()"><img src="/static/img/icon-hangup.png" class="btn-icon-lg" onerror="this.style.display='none';this.parentElement.innerHTML='📞'"></button>
+        <div class="call-overlay" id="callOverlay">
+            <div class="caw" id="caw">
+                <img src="/static/img/avatar.png" class="call-avatar" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                <div class="call-av-fb" style="display:none">🔥</div>
+            </div>
+            <div class="call-name">{{ avatar_name }}</div>
+            <div class="call-status" id="callStatus">Connecting...</div>
+            <div class="call-timer" id="callTimer">0:00</div>
+            <div class="call-transcript" id="callTranscript"></div>
+            <button class="call-hangup" onclick="endCall()"><img src="/static/img/icon-hangup.png" onerror="this.style.display='none';this.parentElement.textContent='📞'"></button>
+        </div>
     </div>
 </div>
 <script>
-const AN="{{ avatar_name }}";
-const STORAGE_KEY="echowix_history_{{ username|default('anon') }}";
+const AN="{{ avatar_name }}",STORAGE_KEY="echowix_history_{{ username|default('anon') }}";
 let socket=null,audioCtx=null,inCall=false,callStream=null,callRec=null;
 let timerInt=null,callSec=0,silTimer=null,chunks=[];
 let aQueue=[],aPlaying=false,analyser=null,vadOn=false;
@@ -144,10 +131,9 @@ let currentAudioSrc=null,aiDoneSpeaking=false,interruptMon=false;
 const SIL_THRESH=0.015,SIL_DUR=1000,INTERRUPT_THRESH=0.025;
 
 document.addEventListener('DOMContentLoaded',()=>{
-    initSocket();loadConversation();updateBgLogo();
+    initSocket();loadConversation();
     document.getElementById('textInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
 });
-
 function initSocket(){
     socket=io();
     socket.on('call_transcription',d=>{setTranscript(d.role,d.text);addMessage(d.role==='user'?'user':'ai',d.text);saveConversation();});
@@ -156,25 +142,21 @@ function initSocket(){
     socket.on('call_resume',()=>{if(inCall){setCallSt('listening');startListen();}});
     socket.on('call_error',d=>{console.error(d.error);if(inCall){setCallSt('listening');startListen();}});
 }
-
 function esc(t){const d=document.createElement('div');d.textContent=t;return d.innerHTML;}
 function ts(){return new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
-function updateBgLogo(){const l=document.getElementById('bgLogo');if(l)l.classList.toggle('has-msgs',document.getElementById('messages').children.length>0);}
 function aiAv(){return `<img src="/static/img/avatar.png" class="msg-av" onerror="this.outerHTML='<div class=\\'msg-av-fb\\'>🔥</div>'">`;}
 function userAv(){return `<img src="/static/img/user-avatar.png" class="msg-av" onerror="this.outerHTML='<div class=\\'msg-av-fb\\' style=\\'background:linear-gradient(135deg,#6366f1,#3b82f6)\\'>👤</div>'">`;}
 function bars(){return `<span class="abtn" onclick="playTTS(this)"><span class="b"></span><span class="b"></span><span class="b"></span><span class="b"></span><span class="b"></span></span>`;}
-
 function addMessage(role,text){
     const c=document.getElementById('messages'),r=document.createElement('div');r.className=`msg-row ${role}`;
     r.innerHTML=`${role==='ai'?aiAv():userAv()}<div class="msg-body"><div class="msg-bubble">${esc(text)}${role==='ai'?bars():''}</div><div class="msg-meta">${ts()}</div></div>`;
-    c.appendChild(r);c.scrollTop=c.scrollHeight;updateBgLogo();
+    c.appendChild(r);c.scrollTop=c.scrollHeight;
 }
 function addTyping(){const c=document.getElementById('messages'),r=document.createElement('div');r.className='typing-row';r.id='typingRow';r.innerHTML=`${aiAv()}<div class="typing-dots"><span></span><span></span><span></span></div>`;c.appendChild(r);c.scrollTop=c.scrollHeight;}
 function removeTyping(){const e=document.getElementById('typingRow');if(e)e.remove();}
-function startStream(){removeTyping();const c=document.getElementById('messages'),r=document.createElement('div');r.className='msg-row ai';r.innerHTML=`${aiAv()}<div class="msg-body"><div class="msg-bubble" id="streamBubble"></div><div class="msg-meta">${ts()}</div></div>`;c.appendChild(r);c.scrollTop=c.scrollHeight;updateBgLogo();}
+function startStream(){removeTyping();const c=document.getElementById('messages'),r=document.createElement('div');r.className='msg-row ai';r.innerHTML=`${aiAv()}<div class="msg-body"><div class="msg-bubble" id="streamBubble"></div><div class="msg-meta">${ts()}</div></div>`;c.appendChild(r);c.scrollTop=c.scrollHeight;}
 function appendStream(t){const b=document.getElementById('streamBubble');if(b){b.textContent+=t;document.getElementById('messages').scrollTop=document.getElementById('messages').scrollHeight;}}
 function endStream(){const b=document.getElementById('streamBubble');if(b){b.innerHTML=esc(b.textContent)+bars();b.removeAttribute('id');}}
-
 function sendMessage(){
     const input=document.getElementById('textInput'),text=input.value.trim();if(!text)return;
     addMessage('user',text);input.value='';addTyping();
@@ -188,9 +170,8 @@ function sendMessage(){
             for(const line of lines){if(!line.startsWith('data: '))continue;
                 try{const d=JSON.parse(line.slice(6));if(d.text){if(!started){startStream();started=true;}appendStream(d.text);}if(d.error){removeTyping();addMessage('ai','[Error: '+d.error+']');}}catch(e){}}
             read();});}read();
-    }).catch(e=>{removeTyping();addMessage('ai','[Connection error]');});
+    }).catch(()=>{removeTyping();addMessage('ai','[Connection error]');});
 }
-
 function playTTS(el){
     const bubble=el.closest('.msg-bubble'),text=bubble.childNodes[0].textContent.trim();if(!text)return;
     el.classList.add('playing');
@@ -198,7 +179,6 @@ function playTTS(el){
     .then(r=>r.blob()).then(blob=>{const a=new Audio(URL.createObjectURL(blob));a.onended=()=>el.classList.remove('playing');a.onerror=()=>el.classList.remove('playing');a.play();
     }).catch(()=>el.classList.remove('playing'));
 }
-
 function toggleCall(){if(inCall)endCall();else startCallFn();}
 async function startCallFn(){
     try{callStream=await navigator.mediaDevices.getUserMedia({audio:true});}catch(e){return;}
@@ -262,15 +242,12 @@ function setTranscript(role,text){
     else el.innerHTML=`<div class="at">${esc(text)}</div>`;
 }
 function updTimer(){const m=Math.floor(callSec/60),s=callSec%60;document.getElementById('callTimer').textContent=`${m}:${s<10?'0'+s:s}`;}
-
 function playChunk(b64){aiDoneSpeaking=false;aQueue.push(b64);if(!aPlaying)playNext();}
 function playNext(){
     if(!aQueue.length){aPlaying=false;currentAudioSrc=null;if(aiDoneSpeaking&&inCall){setCallSt('listening');startListen();}return;}aPlaying=true;
     const bytes=Uint8Array.from(atob(aQueue.shift()),c=>c.charCodeAt(0));
-    const blob=new Blob([bytes],{type:'audio/mpeg'});
-    const url=URL.createObjectURL(blob);
-    const audio=new Audio(url);
-    currentAudioSrc=audio;
+    const blob=new Blob([bytes],{type:'audio/mpeg'});const url=URL.createObjectURL(blob);
+    const audio=new Audio(url);currentAudioSrc=audio;
     audio.onended=()=>{URL.revokeObjectURL(url);currentAudioSrc=null;playNext();};
     audio.onerror=()=>{URL.revokeObjectURL(url);currentAudioSrc=null;playNext();};
     audio.play().catch(()=>{currentAudioSrc=null;playNext();});
@@ -285,7 +262,6 @@ function startInterruptMonitor(){
     const data=new Float32Array(analyser.fftSize);let hitCount=0;
     function chk(){
         if(!interruptMon||!inCall||!analyser)return;
-        // Only check for interrupts when AI is speaking
         if(aPlaying||aQueue.length>0){
             analyser.getFloatTimeDomainData(data);
             let sum=0;for(let i=0;i<data.length;i++)sum+=data[i]*data[i];
@@ -298,8 +274,6 @@ function startInterruptMonitor(){
     requestAnimationFrame(chk);
 }
 function stopInterruptMonitor(){interruptMon=false;}
-
-// Persistence
 function saveConversation(){
     const msgs=[];document.querySelectorAll('.msg-row').forEach(r=>{
         const role=r.classList.contains('user')?'user':'assistant',b=r.querySelector('.msg-bubble');
@@ -307,7 +281,7 @@ function saveConversation(){
     });localStorage.setItem(STORAGE_KEY,JSON.stringify(msgs.slice(-40)));
 }
 function loadConversation(){try{const s=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');for(const m of s)addMessage(m.role==='assistant'?'ai':'user',m.content);}catch(e){}}
-function clearConversation(){localStorage.removeItem(STORAGE_KEY);document.getElementById('messages').innerHTML='';updateBgLogo();fetch('/api/clear',{method:'POST',credentials:'same-origin'}).catch(()=>{});}
+function clearConversation(){localStorage.removeItem(STORAGE_KEY);document.getElementById('messages').innerHTML='';fetch('/api/clear',{method:'POST',credentials:'same-origin'}).catch(()=>{});}
 function toggleMenu(){document.getElementById('clearMenu').classList.toggle('show');}
 document.addEventListener('click',e=>{if(!e.target.closest('.hdr-btn')&&!e.target.closest('.clear-menu'))document.getElementById('clearMenu').classList.remove('show');});
 </script>
