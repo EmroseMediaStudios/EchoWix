@@ -87,6 +87,19 @@ def _load_context():
             pass
     return None
 
+def _load_person_context(username):
+    """Load per-person knowledge file if it exists."""
+    person_path = os.path.join(os.path.dirname(__file__), 'people', f'{username}.md')
+    if os.path.exists(person_path):
+        try:
+            with open(person_path, 'r') as f:
+                content = f.read().strip()
+                if content:
+                    return content
+        except IOError:
+            pass
+    return None
+
 CONTEXT = _load_context()
 
 
@@ -185,19 +198,36 @@ Return ONLY the JSON array, no other text."""},
             existing = existing[-200:]
         
         save_memories(username, existing)
+        
+        # Also append to person file if it exists
+        person_path = os.path.join(os.path.dirname(__file__), 'people', f'{username}.md')
+        if os.path.exists(person_path):
+            try:
+                with open(person_path, 'a') as f:
+                    for mem_text in new_memories:
+                        if isinstance(mem_text, str) and mem_text.strip():
+                            f.write(f"\n- [{timestamp}] {mem_text.strip()}")
+            except IOError:
+                pass
     except Exception as e:
         print(f"Memory extraction error: {e}")
 
 
 def build_messages(sid):
-    """Build the full message list with system prompt + context + memories + history."""
+    """Build the full message list with system prompt + context + person + memories + history."""
     msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
     
+    # Layer 1: Core identity (always loaded)
     if CONTEXT:
-        msgs.append({"role": "system", "content": f"Here are memories, stories, and context you can draw from naturally in conversation. Don't dump these unprompted — weave them in when relevant, like a real person recalling something:\n\n{CONTEXT}"})
+        msgs.append({"role": "system", "content": f"This is who you are — your life, your family, your experiences. This IS your memory. Draw from it naturally:\n\n{CONTEXT}"})
     
-    # Search for relevant memories based on the last user message
+    # Layer 2: Per-person knowledge
     username = session.get('username', 'anonymous')
+    person_ctx = _load_person_context(username)
+    if person_ctx:
+        msgs.append({"role": "system", "content": f"What you know about the person you're talking to right now. Use this naturally — reference things you know about them, but don't be creepy about it:\n\n{person_ctx}"})
+    
+    # Layer 3: Dynamic memories from past conversations
     history = get_history(sid)
     last_user_msg = ""
     for m in reversed(history):
