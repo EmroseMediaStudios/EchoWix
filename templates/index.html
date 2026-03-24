@@ -141,7 +141,7 @@ let socket=null,audioCtx=null,inCall=false,callStream=null,callRec=null;
 let timerInt=null,callSec=0,silTimer=null,chunks=[];
 let aQueue=[],aPlaying=false,analyser=null,vadOn=false;
 let currentAudioSrc=null,aiDoneSpeaking=false,interruptMon=false;
-const SIL_THRESH=0.015,SIL_DUR=1500,INTERRUPT_THRESH=0.025;
+const SIL_THRESH=0.015,SIL_DUR=1000,INTERRUPT_THRESH=0.025;
 
 document.addEventListener('DOMContentLoaded',()=>{
     initSocket();loadConversation();updateBgLogo();
@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 function initSocket(){
     socket=io();
     socket.on('call_transcription',d=>{setTranscript(d.role,d.text);addMessage(d.role==='user'?'user':'ai',d.text);saveConversation();});
-    socket.on('call_audio',d=>{setCallSt('speaking');playChunk(d.data);monInterrupt();});
+    socket.on('call_audio',d=>{setCallSt('speaking');playChunk(d.data);});
     socket.on('call_audio_end',()=>{aiDoneSpeaking=true;if(!aPlaying&&inCall){setCallSt('listening');startListen();}});
     socket.on('call_resume',()=>{if(inCall){setCallSt('listening');startListen();}});
     socket.on('call_error',d=>{console.error(d.error);if(inCall){setCallSt('listening');startListen();}});
@@ -210,10 +210,10 @@ async function startCallFn(){
     audioCtx=new(window.AudioContext||window.webkitAudioContext)();
     const src=audioCtx.createMediaStreamSource(callStream);
     analyser=audioCtx.createAnalyser();analyser.fftSize=512;src.connect(analyser);
-    socket.emit('call_start');setCallSt('listening');startListen();
+    socket.emit('call_start');setCallSt('listening');startListen();startInterruptMonitor();
 }
 function endCall(){
-    inCall=false;vadOn=false;interruptMon=false;
+    inCall=false;vadOn=false;stopInterruptMonitor();
     if(currentAudioSrc){try{currentAudioSrc.pause();currentAudioSrc.src='';}catch(e){}currentAudioSrc=null;}
     if(callRec&&callRec.state!=='inactive')callRec.stop();
     if(callStream){callStream.getTracks().forEach(t=>t.stop());callStream=null;}
@@ -276,23 +276,28 @@ function playNext(){
     audio.play().catch(()=>{currentAudioSrc=null;playNext();});
 }
 function stopPlayback(){
-    aQueue=[];aPlaying=false;aiDoneSpeaking=false;interruptMon=false;
+    aQueue=[];aPlaying=false;aiDoneSpeaking=false;
     if(currentAudioSrc){try{currentAudioSrc.pause();currentAudioSrc.src='';}catch(e){}currentAudioSrc=null;}
     socket.emit('call_interrupt');
 }
-function monInterrupt(){
-    if(interruptMon||!analyser||!inCall)return;interruptMon=true;
+function startInterruptMonitor(){
+    if(interruptMon)return;interruptMon=true;
     const data=new Float32Array(analyser.fftSize);let hitCount=0;
     function chk(){
-        if(!interruptMon||!inCall||!aPlaying)return;
-        analyser.getFloatTimeDomainData(data);
-        let sum=0;for(let i=0;i<data.length;i++)sum+=data[i]*data[i];
-        const rms=Math.sqrt(sum/data.length);
-        if(rms>INTERRUPT_THRESH){hitCount++;if(hitCount>3){stopPlayback();setCallSt('listening');startListen();return;}}else{hitCount=Math.max(0,hitCount-1);}
+        if(!interruptMon||!inCall||!analyser)return;
+        // Only check for interrupts when AI is speaking
+        if(aPlaying||aQueue.length>0){
+            analyser.getFloatTimeDomainData(data);
+            let sum=0;for(let i=0;i<data.length;i++)sum+=data[i]*data[i];
+            const rms=Math.sqrt(sum/data.length);
+            if(rms>INTERRUPT_THRESH){hitCount++;if(hitCount>3){hitCount=0;stopPlayback();setCallSt('listening');startListen();}}
+            else{hitCount=Math.max(0,hitCount-1);}
+        }else{hitCount=0;}
         requestAnimationFrame(chk);
     }
     requestAnimationFrame(chk);
 }
+function stopInterruptMonitor(){interruptMon=false;}
 
 // Persistence
 function saveConversation(){

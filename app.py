@@ -153,7 +153,7 @@ def transcribe_audio(audio_bytes):
 
 
 def get_ai_response(sid, user_text):
-    """Get GPT response and add to conversation."""
+    """Get GPT response and add to conversation (for text chat)."""
     add_message(sid, "user", user_text)
     messages = [{"role": "system", "content": SYSTEM_PROMPT}] + get_history(sid)
     resp = openai.chat.completions.create(
@@ -167,10 +167,73 @@ def get_ai_response(sid, user_text):
     return ai_text
 
 
-def split_sentences(text):
-    """Split text into sentences for incremental TTS."""
-    parts = re.split(r'(?<=[.!?])\s+', text.strip())
-    return [p for p in parts if p.strip()]
+def stream_ai_sentences(sid, user_text):
+    """Stream GPT response and yield complete sentences as they form."""
+    add_message(sid, "user", user_text)
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + get_history(sid)
+    
+    call_model = CONFIG.get('call_model', 'gpt-4o-mini')
+    stream = openai.chat.completions.create(
+        model=call_model,
+        messages=messages,
+        stream=True,
+        temperature=0.85,
+        max_tokens=150,
+    )
+    
+    buffer = ""
+    full = ""
+    for chunk in stream:
+        delta = chunk.choices[0].delta if chunk.choices else None
+        if delta and delta.content:
+            buffer += delta.content
+            full += delta.content
+            # Check if we have a complete sentence
+            while True:
+                match = re.search(r'[.!?]+\s*', buffer)
+                if match and match.end() < len(buffer):
+                    sentence = buffer[:match.end()].strip()
+                    buffer = buffer[match.end():]
+                    if sentence:
+                        yield sentence
+                else:
+                    break
+    
+    # Yield remaining text
+    if buffer.strip():
+        yield buffer.strip()
+    
+    add_message(sid, "assistant", full)
+
+
+def tts_call(text):
+    """Fast TTS for live calls — uses turbo model."""
+    voice_id = CONFIG.get('voice_id')
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
+    headers = {
+        "xi-api-key": ELEVENLABS_API_KEY,
+        "Content-Type": "application/json",
+        "Accept": "audio/mpeg",
+    }
+    tts_settings = CONFIG.get('tts_settings', {})
+    payload = {
+        "text": text,
+        "model_id": CONFIG.get('call_tts_model', 'eleven_turbo_v2_5'),
+        "voice_settings": {
+            "stability": tts_settings.get('stability', 0.35),
+            "similarity_boost": tts_settings.get('similarity_boost', 0.9),
+            "style": tts_settings.get('style', 0.55),
+            "use_speaker_boost": True,
+        },
+        "output_format": "mp3_22050_32",
+        "optimize_streaming_latency": 4,
+    }
+    resp = httpx.post(url, headers=headers, json=payload, timeout=30)
+    if resp.status_code == 200:
+        return resp.content
+    else:
+        print(f"Call TTS error: HTTP {resp.status_code} — {resp.content[:200]}")
+        return None
 
 
 def tts_full(text):
@@ -347,17 +410,17 @@ def handle_call_utterance(data):
 
         emit('call_transcription', {'role': 'user', 'text': user_text})
 
-        # 2. GPT response
-        ai_text = get_ai_response(sid, user_text)
-        emit('call_transcription', {'role': 'ai', 'text': ai_text})
-
-        # 3. TTS — sentence by sentence for faster first audio
-        sentences = split_sentences(ai_text)
-        for sentence in sentences:
-            audio = tts_full(sentence)
+        # 2. Stream GPT response → TTS each sentence as it completes
+        full_text = ""
+        for sentence in stream_ai_sentences(sid, user_text):
+            full_text += (" " if full_text else "") + sentence
+            audio = tts_call(sentence)
             if audio:
                 b64 = base64.b64encode(audio).decode('utf-8')
                 emit('call_audio', {'data': b64})
+
+        if full_text:
+            emit('call_transcription', {'role': 'ai', 'text': full_text})
 
         emit('call_audio_end')
 
