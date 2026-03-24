@@ -82,6 +82,9 @@
         .clear-menu.show{display:block}
         .clear-menu button{display:block;width:100%;padding:8px 16px;background:transparent;border:none;color:var(--text2);font-size:0.82rem;cursor:pointer;border-radius:6px;text-align:left;font-family:inherit}
         .clear-menu button:hover{background:rgba(239,68,68,0.1);color:var(--red)}
+        .btn-icon{width:20px;height:20px;object-fit:contain;filter:brightness(0) invert(1)}
+        .btn-icon-lg{width:28px;height:28px;object-fit:contain;filter:brightness(0) invert(1)}
+        .menu-icon{width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:4px}
         @media(max-width:700px){.app-card{width:100vw;height:100vh;height:100dvh;border-radius:0;border:none}.center-logo img{max-height:100px}}
     </style>
 </head>
@@ -94,10 +97,10 @@
             <div><div class="header-title">{{ avatar_name }}</div><div class="header-sub"><span class="dot"></span>{{ app_name }} · Online</div></div>
         </div>
         <div class="header-right">
-            <button class="hdr-btn btn-call" id="callBtn" onclick="toggleCall()" title="Start call">📞</button>
-            <button class="hdr-btn btn-menu" onclick="toggleMenu()" title="Options">⚡</button>
+            <button class="hdr-btn btn-call" id="callBtn" onclick="toggleCall()" title="Start call"><img src="/static/img/icon-call.png" class="btn-icon" onerror="this.style.display='none';this.parentElement.textContent='📞'"></button>
+            <button class="hdr-btn btn-menu" onclick="toggleMenu()" title="Options"><img src="/static/img/icon-menu.png" class="btn-icon" onerror="this.style.display='none';this.parentElement.textContent='⚡'"></button>
         </div>
-        <div class="clear-menu" id="clearMenu"><button onclick="clearConversation();toggleMenu();">🗑 Clear conversation</button></div>
+        <div class="clear-menu" id="clearMenu"><button onclick="clearConversation();toggleMenu();"><img src="/static/img/icon-clear.png" class="menu-icon" onerror="this.style.display='none'"> Clear conversation</button></div>
     </div>
     <div class="messages" id="messages"></div>
     <div class="center-logo" id="centerLogo">
@@ -106,7 +109,7 @@
     </div>
     <div class="input-bar">
         <input type="text" class="text-input" id="textInput" placeholder="Message {{ avatar_name }}..." autocomplete="off">
-        <button class="send-btn" onclick="sendMessage()" title="Send">➤</button>
+        <button class="send-btn" onclick="sendMessage()" title="Send"><img src="/static/img/icon-send.png" class="btn-icon" onerror="this.style.display='none';this.parentElement.textContent='➤'"></button>
     </div>
     <div class="call-overlay" id="callOverlay">
         <div class="caw" id="caw">
@@ -117,7 +120,7 @@
         <div class="call-status" id="callStatus">Connecting...</div>
         <div class="call-timer" id="callTimer">0:00</div>
         <div class="call-transcript" id="callTranscript"></div>
-        <button class="call-hangup" onclick="endCall()">📞</button>
+        <button class="call-hangup" onclick="endCall()"><img src="/static/img/icon-hangup.png" class="btn-icon-lg" onerror="this.style.display='none';this.parentElement.textContent='📞'"></button>
     </div>
 </div>
 <script>
@@ -147,7 +150,7 @@ function esc(t){const d=document.createElement('div');d.textContent=t;return d.i
 function ts(){return new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
 function checkLogo(){document.getElementById('centerLogo').classList.toggle('hidden',document.getElementById('messages').children.length>0);}
 function aiAv(){return `<img src="/static/img/avatar.png" class="msg-av" onerror="this.outerHTML='<div class=\\'msg-av-fb\\'>🔥</div>'">`;}
-function userAv(){return `<div class="msg-av-fb" style="background:linear-gradient(135deg,#6366f1,#3b82f6)">👤</div>`;}
+function userAv(){return `<img src="/static/img/user-avatar.png" class="msg-av" onerror="this.outerHTML='<div class=\\'msg-av-fb\\' style=\\'background:linear-gradient(135deg,#6366f1,#3b82f6)\\'>👤</div>'">`;}
 function bars(){return `<span class="abtn" onclick="playTTS(this)"><span class="b"></span><span class="b"></span><span class="b"></span><span class="b"></span><span class="b"></span></span>`;}
 
 function addMessage(role,text){
