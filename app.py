@@ -88,13 +88,13 @@ def _init_users():
     """Create default users file if it doesn't exist."""
     if not os.path.exists(USERS_FILE):
         users = {
-            "admin": {"password": _hash_pw("admin"), "role": "admin", "display_name": "Admin"},
-            "user1": {"password": _hash_pw("user1"), "role": "user", "display_name": "User 1"},
-            "user2": {"password": _hash_pw("user2"), "role": "user", "display_name": "User 2"},
-            "user3": {"password": _hash_pw("user3"), "role": "user", "display_name": "User 3"},
+            "admin": {"password": _hash_pw("3ThreeIs1!"), "role": "admin", "display_name": "Steve"},
+            "drew": {"password": _hash_pw("InfinitePumpkins"), "role": "user", "display_name": "Drew"},
+            "kim": {"password": _hash_pw("MoonAndBack"), "role": "user", "display_name": "Kim"},
+            "emma": {"password": _hash_pw("LoveYou3000"), "role": "user", "display_name": "Emma"},
         }
         _save_users(users)
-        print("Created default users.json — change passwords!")
+        print("Created users.json")
 
 _init_users()
 
