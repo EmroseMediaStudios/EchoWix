@@ -35,6 +35,9 @@ wheels/
 .env
 .env.local
 
+# TTS cache
+.tts_cache/
+
 # Temp files
 *.tmp
 *.log

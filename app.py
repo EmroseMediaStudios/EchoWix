@@ -14,6 +14,7 @@ import re
 import base64
 import hashlib
 import tempfile
+import time
 from functools import wraps
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, session, jsonify, Response, redirect, url_for
@@ -206,8 +207,48 @@ def stream_ai_sentences(sid, user_text):
     add_message(sid, "assistant", full)
 
 
+# ---- TTS CACHE ----
+# Cache generated audio to avoid re-generating identical phrases.
+# Key = hash of (text + model + voice_id + settings). Stored on disk.
+
+TTS_CACHE_DIR = os.path.join(os.path.dirname(__file__), '.tts_cache')
+os.makedirs(TTS_CACHE_DIR, exist_ok=True)
+TTS_CACHE_MAX_AGE = 60 * 60 * 24 * 30  # 30 days
+
+def _cache_key(text, model_id):
+    """Generate a cache key from text + model + voice settings."""
+    voice_id = CONFIG.get('voice_id', '')
+    settings = json.dumps(CONFIG.get('tts_settings', {}), sort_keys=True)
+    raw = f"{text}|{model_id}|{voice_id}|{settings}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+def _cache_get(key):
+    """Get cached audio bytes, or None if not cached / expired."""
+    path = os.path.join(TTS_CACHE_DIR, f"{key}.mp3")
+    if os.path.exists(path):
+        age = time.time() - os.path.getmtime(path)
+        if age < TTS_CACHE_MAX_AGE:
+            with open(path, 'rb') as f:
+                return f.read()
+        else:
+            os.unlink(path)  # expired
+    return None
+
+def _cache_put(key, audio_bytes):
+    """Store audio bytes in cache."""
+    path = os.path.join(TTS_CACHE_DIR, f"{key}.mp3")
+    with open(path, 'wb') as f:
+        f.write(audio_bytes)
+
+
 def tts_call(text):
-    """Fast TTS for live calls — uses turbo model."""
+    """Fast TTS for live calls — uses turbo model. Cached."""
+    model_id = CONFIG.get('call_tts_model', 'eleven_turbo_v2_5')
+    key = _cache_key(text.strip().lower(), model_id)
+    cached = _cache_get(key)
+    if cached:
+        return cached
+
     voice_id = CONFIG.get('voice_id')
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
     headers = {
@@ -230,6 +271,7 @@ def tts_call(text):
     }
     resp = httpx.post(url, headers=headers, json=payload, timeout=30)
     if resp.status_code == 200:
+        _cache_put(key, resp.content)
         return resp.content
     else:
         print(f"Call TTS error: HTTP {resp.status_code} — {resp.content[:200]}")
@@ -237,7 +279,13 @@ def tts_call(text):
 
 
 def tts_full(text):
-    """Get complete TTS audio as bytes from ElevenLabs."""
+    """Get complete TTS audio as bytes from ElevenLabs. Cached."""
+    model_id = CONFIG.get('tts_model', 'eleven_multilingual_v2')
+    key = _cache_key(text.strip().lower(), model_id)
+    cached = _cache_get(key)
+    if cached:
+        return cached
+
     voice_id = CONFIG.get('voice_id')
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
     headers = {
@@ -260,6 +308,7 @@ def tts_full(text):
     }
     resp = httpx.post(url, headers=headers, json=payload, timeout=60)
     if resp.status_code == 200:
+        _cache_put(key, resp.content)
         return resp.content
     else:
         print(f"TTS error: HTTP {resp.status_code} — {resp.content[:200]}")
