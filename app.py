@@ -56,6 +56,23 @@ def load_config():
 
 CONFIG = load_config()
 
+# Load system prompt from personality file if configured, otherwise use inline prompt
+def _load_system_prompt():
+    prompt_file = CONFIG.get("system_prompt_file")
+    if prompt_file:
+        prompt_path = os.path.join(os.path.dirname(__file__), prompt_file)
+        try:
+            with open(prompt_path, 'r') as f:
+                content = f.read().strip()
+                # Strip markdown comments (lines starting with #) at the very top if desired
+                # Actually keep them — GPT handles markdown fine and the headers help structure
+                return content
+        except FileNotFoundError:
+            pass
+    return CONFIG.get("system_prompt", "You are a conversational AI. Be natural and concise.")
+
+SYSTEM_PROMPT = _load_system_prompt()
+
 # In-memory conversation storage (keyed by session ID)
 conversations = {}
 
@@ -119,8 +136,7 @@ def chat():
     add_message(session_id, "user", user_message)
     
     # Build messages for API call
-    system_prompt = CONFIG.get('system_prompt')
-    messages = [{"role": "system", "content": system_prompt}]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages.extend(get_recent_history(session_id, include_current=True))
     
     def stream_response():
@@ -240,8 +256,7 @@ def handle_voice_data(data):
         emit('transcription', {'text': user_text})
         
         # Get AI response
-        system_prompt = CONFIG.get('system_prompt')
-        messages = [{"role": "system", "content": system_prompt}]
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         messages.extend(get_recent_history(session_id, include_current=True))
         
         response = openai.ChatCompletion.create(
