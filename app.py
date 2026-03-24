@@ -7,6 +7,7 @@ Uses OpenAI GPT-4o, Whisper, and ElevenLabs TTS
 
 import gevent.monkey
 gevent.monkey.patch_all()
+import gevent
 
 import json
 import os
@@ -88,12 +89,129 @@ def _load_context():
 
 CONTEXT = _load_context()
 
+
+# ---- MEMORY SYSTEM (per-user long-term recall) ----
+# After each exchange, GPT extracts key memories from the conversation.
+# Before each response, relevant memories are searched and injected.
+# This gives Steve persistent recall across sessions.
+
+MEMORY_DIR = os.path.join(os.path.dirname(__file__), '.memories')
+os.makedirs(MEMORY_DIR, exist_ok=True)
+
+def _memory_path(username):
+    return os.path.join(MEMORY_DIR, f"{username}.json")
+
+def load_memories(username):
+    path = _memory_path(username)
+    if os.path.exists(path):
+        try:
+            with open(path, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return []
+    return []
+
+def save_memories(username, memories):
+    path = _memory_path(username)
+    with open(path, 'w') as f:
+        json.dump(memories, f, indent=2)
+
+def search_memories(username, query, max_results=8):
+    """Simple keyword search through memories. Returns most relevant entries."""
+    memories = load_memories(username)
+    if not memories:
+        return []
+    
+    query_words = set(query.lower().split())
+    scored = []
+    for mem in memories:
+        mem_text = mem.get('content', '').lower()
+        # Score by keyword overlap + recency bonus
+        matches = sum(1 for w in query_words if w in mem_text and len(w) > 2)
+        if matches > 0:
+            scored.append((matches, mem))
+    
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [m for _, m in scored[:max_results]]
+
+def extract_memories_async(username, user_text, ai_text):
+    """Background: ask GPT to extract memorable facts from this exchange."""
+    try:
+        resp = openai.chat.completions.create(
+            model='gpt-4o-mini',
+            messages=[
+                {"role": "system", "content": """Extract key facts, preferences, emotions, or events worth remembering from this conversation exchange. Return a JSON array of short memory strings. Only include things worth recalling in future conversations — skip generic pleasantries.
+
+Examples of good memories:
+- "Mentioned they had a rough day at work on March 24"
+- "Said they're thinking about getting a dog"  
+- "Was feeling lonely and missing family"
+- "Excited about a new project they're starting"
+- "Prefers being called 'babe' sometimes"
+
+If nothing worth remembering, return an empty array: []
+Return ONLY the JSON array, no other text."""},
+                {"role": "user", "content": f"User said: {user_text}\n\nSteve replied: {ai_text}"}
+            ],
+            temperature=0.3,
+            max_tokens=200,
+        )
+        raw = resp.choices[0].message.content.strip()
+        # Parse JSON array from response
+        if raw.startswith('['):
+            new_memories = json.loads(raw)
+        else:
+            # Try to find array in response
+            match = re.search(r'\[.*\]', raw, re.DOTALL)
+            if match:
+                new_memories = json.loads(match.group())
+            else:
+                return
+        
+        if not new_memories:
+            return
+        
+        existing = load_memories(username)
+        timestamp = time.strftime('%Y-%m-%d %H:%M')
+        for mem_text in new_memories:
+            if isinstance(mem_text, str) and mem_text.strip():
+                existing.append({
+                    'content': mem_text.strip(),
+                    'timestamp': timestamp,
+                })
+        
+        # Keep last 200 memories max
+        if len(existing) > 200:
+            existing = existing[-200:]
+        
+        save_memories(username, existing)
+    except Exception as e:
+        print(f"Memory extraction error: {e}")
+
+
 def build_messages(sid):
-    """Build the full message list with system prompt + context + history."""
+    """Build the full message list with system prompt + context + memories + history."""
     msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
+    
     if CONTEXT:
         msgs.append({"role": "system", "content": f"Here are memories, stories, and context you can draw from naturally in conversation. Don't dump these unprompted — weave them in when relevant, like a real person recalling something:\n\n{CONTEXT}"})
-    msgs.extend(get_history(sid))
+    
+    # Search for relevant memories based on the last user message
+    username = session.get('username', 'anonymous')
+    history = get_history(sid)
+    last_user_msg = ""
+    for m in reversed(history):
+        if m['role'] == 'user':
+            last_user_msg = m['content']
+            break
+    
+    if last_user_msg:
+        relevant = search_memories(username, last_user_msg)
+        if relevant:
+            mem_text = "\n".join(f"- {m['content']} ({m.get('timestamp', '')})" for m in relevant)
+            msgs.append({"role": "system", "content": f"Things you remember from past conversations with this person (use naturally, don't list them off):\n{mem_text}"})
+    
+    msgs.extend(history)
     return msgs
 
 
@@ -214,6 +332,9 @@ def get_ai_response(sid, user_text):
     )
     ai_text = resp.choices[0].message.content
     add_message(sid, "assistant", ai_text)
+    # Extract memories in background
+    username = session.get('username', 'anonymous')
+    gevent.spawn(extract_memories_async, username, user_text, ai_text)
     return ai_text
 
 
@@ -254,6 +375,9 @@ def stream_ai_sentences(sid, user_text):
         yield buffer.strip()
     
     add_message(sid, "assistant", full)
+    # Extract memories in background
+    username = session.get('username', 'anonymous')
+    gevent.spawn(extract_memories_async, username, user_text, full)
 
 
 # ---- TTS CACHE ----
@@ -438,6 +562,9 @@ def chat():
                     full += (delta.content or "")
                     yield f"data: {json.dumps({'text': delta.content})}\n\n"
             add_message(sid, "assistant", full)
+            # Extract memories in background
+            _uname = session.get('username', 'anonymous')
+            gevent.spawn(extract_memories_async, _uname, user_message, full)
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as e:
             print(f"Chat error: {e}")

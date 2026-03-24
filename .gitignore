@@ -41,6 +41,9 @@ wheels/
 # Conversation history
 .conversations/
 
+# User memories
+.memories/
+
 # Temp files
 *.tmp
 *.log
