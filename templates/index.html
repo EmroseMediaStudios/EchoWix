@@ -197,7 +197,7 @@ async function startCallFn(){
     socket.emit('call_start');setCallSt('listening');startListen();startInterruptMonitor();
 }
 function endCall(){
-    inCall=false;vadOn=false;stopInterruptMonitor();
+    inCall=false;vadOn=false;stopInterruptMonitor();clearSilenceNudge();
     if(currentAudioSrc){try{currentAudioSrc.pause();currentAudioSrc.src='';}catch(e){}currentAudioSrc=null;}
     if(callRec&&callRec.state!=='inactive')callRec.stop();
     if(callStream){callStream.getTracks().forEach(t=>t.stop());callStream=null;}
@@ -211,6 +211,7 @@ function endCall(){
 }
 function startListen(){
     if(!inCall||!callStream)return;
+    startSilenceNudge();
     const mime=MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'audio/mp4';
     callRec=new MediaRecorder(callStream,{mimeType:mime});chunks=[];
     callRec.ondataavailable=e=>chunks.push(e.data);
@@ -229,7 +230,7 @@ function monVAD(){
         if(!vadOn)return;analyser.getFloatTimeDomainData(data);
         let sum=0;for(let i=0;i<data.length;i++)sum+=data[i]*data[i];
         const rms=Math.sqrt(sum/data.length);
-        if(rms>SIL_THRESH){speaking=true;silStart=null;if(silTimer){clearTimeout(silTimer);silTimer=null;}}
+        if(rms>SIL_THRESH){speaking=true;silStart=null;clearSilenceNudge();if(silTimer){clearTimeout(silTimer);silTimer=null;}}
         else if(speaking&&!silStart){silStart=Date.now();silTimer=setTimeout(()=>{speaking=false;silStart=null;vadOn=false;if(callRec&&callRec.state==='recording')callRec.stop();},SIL_DUR);}
         if(vadOn)requestAnimationFrame(chk);
     }
@@ -247,6 +248,19 @@ function setTranscript(role,text){
 }
 function updTimer(){const m=Math.floor(callSec/60),s=callSec%60;document.getElementById('callTimer').textContent=`${m}:${s<10?'0'+s:s}`;}
 const SENTENCE_PAUSE_MS=400;
+const SILENCE_NUDGE_MS=10000;
+let silenceNudgeTimer=null;
+const SILENCE_NUDGES=["you still there?","hello?","I can hear you breathing...","hey... you good?","you thinking or did I lose you?","...you fall asleep on me?"];
+function startSilenceNudge(){
+    clearSilenceNudge();
+    silenceNudgeTimer=setTimeout(()=>{
+        if(!inCall||aPlaying||aQueue.length>0)return;
+        const nudge=SILENCE_NUDGES[Math.floor(Math.random()*SILENCE_NUDGES.length)];
+        socket.emit('call_utterance',{audio:null,nudge:nudge});
+        setCallSt('thinking');
+    },SILENCE_NUDGE_MS);
+}
+function clearSilenceNudge(){if(silenceNudgeTimer){clearTimeout(silenceNudgeTimer);silenceNudgeTimer=null;}}
 function playChunk(b64){aiDoneSpeaking=false;aQueue.push(b64);if(!aPlaying)playNext();}
 function playNext(){
     if(!aQueue.length){aPlaying=false;currentAudioSrc=null;if(aiDoneSpeaking&&inCall){setCallSt('listening');startListen();}return;}aPlaying=true;

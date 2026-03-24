@@ -650,6 +650,18 @@ def handle_call_start():
 def handle_call_utterance(data):
     try:
         sid = get_user_sid()
+        
+        # Handle silence nudge — no audio, just a pre-written nudge phrase
+        nudge = data.get('nudge')
+        if nudge:
+            audio = tts_call(nudge)
+            if audio:
+                b64 = base64.b64encode(audio).decode('utf-8')
+                emit('call_audio', {'data': b64})
+            emit('call_transcription', {'role': 'ai', 'text': nudge})
+            emit('call_audio_end')
+            return
+        
         audio_data = data.get('audio')
         if not audio_data:
             emit('call_error', {'error': 'No audio data'})
