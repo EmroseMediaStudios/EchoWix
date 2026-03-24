@@ -246,13 +246,15 @@ function setTranscript(role,text){
     else el.innerHTML=`<div class="at">${esc(text)}</div>`;
 }
 function updTimer(){const m=Math.floor(callSec/60),s=callSec%60;document.getElementById('callTimer').textContent=`${m}:${s<10?'0'+s:s}`;}
+const SENTENCE_PAUSE_MS=400;
 function playChunk(b64){aiDoneSpeaking=false;aQueue.push(b64);if(!aPlaying)playNext();}
 function playNext(){
     if(!aQueue.length){aPlaying=false;currentAudioSrc=null;if(aiDoneSpeaking&&inCall){setCallSt('listening');startListen();}return;}aPlaying=true;
     const bytes=Uint8Array.from(atob(aQueue.shift()),c=>c.charCodeAt(0));
     const blob=new Blob([bytes],{type:'audio/mpeg'});const url=URL.createObjectURL(blob);
     const audio=new Audio(url);currentAudioSrc=audio;
-    audio.onended=()=>{URL.revokeObjectURL(url);currentAudioSrc=null;playNext();};
+    const onDone=()=>{URL.revokeObjectURL(url);currentAudioSrc=null;if(aQueue.length){setTimeout(()=>playNext(),SENTENCE_PAUSE_MS);}else{playNext();}};
+    audio.onended=onDone;
     audio.onerror=()=>{URL.revokeObjectURL(url);currentAudioSrc=null;playNext();};
     audio.play().catch(()=>{currentAudioSrc=null;playNext();});
 }
