@@ -292,4 +292,4 @@ def handle_disconnect():
 if __name__ == '__main__':
     print(f"Starting EchoWix on port 7751...")
     print(f"Avatar: {CONFIG.get('avatar_name', 'Steve')}")
-    socketio.run(app, host='0.0.0.0', port=7751, debug=True)
+    socketio.run(app, host='0.0.0.0', port=7751, debug=False)
