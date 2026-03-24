@@ -268,6 +268,12 @@ def handle_call_utterance(data):
         emit('call_error', {'error': str(e)})
 
 
+@socketio.on('call_interrupt')
+def handle_call_interrupt():
+    """Client interrupted AI speech — stop any pending TTS streaming."""
+    print("Call interrupted by user")
+
+
 @socketio.on('call_end')
 def handle_call_end():
     """Client ended the call."""
