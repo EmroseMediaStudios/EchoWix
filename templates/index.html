@@ -262,15 +262,17 @@ function playChunk(b64){aiDoneSpeaking=false;aQueue.push(b64);if(!aPlaying)playN
 function playNext(){
     if(!aQueue.length){aPlaying=false;currentAudioSrc=null;if(aiDoneSpeaking&&inCall){setCallSt('listening');startListen();}return;}aPlaying=true;
     const bytes=Uint8Array.from(atob(aQueue.shift()),c=>c.charCodeAt(0));
-    if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-    audioCtx.decodeAudioData(bytes.buffer.slice(0),buf=>{
-        const src=audioCtx.createBufferSource();src.buffer=buf;src.connect(audioCtx.destination);
-        currentAudioSrc=src;src.onended=()=>{currentAudioSrc=null;playNext();};src.start(0);
-    },()=>{currentAudioSrc=null;playNext();});
+    const blob=new Blob([bytes],{type:'audio/mpeg'});
+    const url=URL.createObjectURL(blob);
+    const audio=new Audio(url);
+    currentAudioSrc=audio;
+    audio.onended=()=>{URL.revokeObjectURL(url);currentAudioSrc=null;playNext();};
+    audio.onerror=()=>{URL.revokeObjectURL(url);currentAudioSrc=null;playNext();};
+    audio.play().catch(()=>{currentAudioSrc=null;playNext();});
 }
 function stopPlayback(){
     aQueue=[];aPlaying=false;aiDoneSpeaking=false;interruptMon=false;
-    if(currentAudioSrc){try{currentAudioSrc.stop();}catch(e){}currentAudioSrc=null;}
+    if(currentAudioSrc){try{currentAudioSrc.pause();currentAudioSrc.src='';}catch(e){}currentAudioSrc=null;}
     socket.emit('call_interrupt');
 }
 function monInterrupt(){

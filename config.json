@@ -5,11 +5,11 @@
   "system_prompt_file": "personality.md",
   "model": "gpt-4o",
   "max_history": 20,
-  "tts_model": "eleven_turbo_v2_5",
+  "tts_model": "eleven_multilingual_v2",
   "tts_settings": {
-    "stability": 0.6,
-    "similarity_boost": 0.85,
-    "style": 0.2,
+    "stability": 0.45,
+    "similarity_boost": 0.8,
+    "style": 0.45,
     "use_speaker_boost": true
   }
 }

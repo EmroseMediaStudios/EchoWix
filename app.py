@@ -134,11 +134,11 @@ def stream_tts(text):
     tts_settings = CONFIG.get('tts_settings', {})
     payload = {
         "text": text,
-        "model_id": CONFIG.get('tts_model', 'eleven_turbo_v2_5'),
+        "model_id": CONFIG.get('tts_model', 'eleven_multilingual_v2'),
         "voice_settings": {
-            "stability": tts_settings.get('stability', 0.6),
-            "similarity_boost": tts_settings.get('similarity_boost', 0.85),
-            "style": tts_settings.get('style', 0.2),
+            "stability": tts_settings.get('stability', 0.45),
+            "similarity_boost": tts_settings.get('similarity_boost', 0.8),
+            "style": tts_settings.get('style', 0.45),
             "use_speaker_boost": True,
         },
         "output_format": "mp3_44100_192",
@@ -272,9 +272,14 @@ def handle_call_utterance(data):
         ai_text = get_ai_response(sid, user_text)
         emit('call_transcription', {'role': 'ai', 'text': ai_text})
 
-        # 3. Stream TTS audio back
+        # 3. TTS — collect full audio, then send as one piece for clean playback
+        audio_chunks = []
         for chunk in stream_tts(ai_text):
-            b64 = base64.b64encode(chunk).decode('utf-8')
+            audio_chunks.append(chunk)
+        
+        if audio_chunks:
+            full_audio = b''.join(audio_chunks)
+            b64 = base64.b64encode(full_audio).decode('utf-8')
             emit('call_audio', {'data': b64})
 
         emit('call_audio_end')
