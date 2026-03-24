@@ -126,19 +126,31 @@ def stream_tts(text):
     """Generator that yields TTS audio chunks from ElevenLabs."""
     voice_id = CONFIG.get('voice_id')
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
-    headers = {"xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json"}
+    headers = {
+        "xi-api-key": ELEVENLABS_API_KEY,
+        "Content-Type": "application/json",
+        "Accept": "audio/mpeg",
+    }
+    tts_settings = CONFIG.get('tts_settings', {})
     payload = {
         "text": text,
-        "model_id": CONFIG.get('tts_model', 'eleven_multilingual_v2'),
-        "voice_settings": CONFIG.get('tts_settings', {}),
-        "output_format": "mp3_44100_128",
+        "model_id": CONFIG.get('tts_model', 'eleven_turbo_v2_5'),
+        "voice_settings": {
+            "stability": tts_settings.get('stability', 0.6),
+            "similarity_boost": tts_settings.get('similarity_boost', 0.85),
+            "style": tts_settings.get('style', 0.2),
+            "use_speaker_boost": True,
+        },
+        "output_format": "mp3_44100_192",
+        "optimize_streaming_latency": 3,
     }
     with httpx.stream("POST", url, headers=headers, json=payload, timeout=60) as r:
         if r.status_code == 200:
-            for chunk in r.iter_bytes(chunk_size=4096):
+            for chunk in r.iter_bytes(chunk_size=2048):
                 yield chunk
         else:
-            print(f"TTS error: HTTP {r.status_code}")
+            body = r.read()
+            print(f"TTS error: HTTP {r.status_code} — {body[:200]}")
 
 
 # ---- ROUTES ----
