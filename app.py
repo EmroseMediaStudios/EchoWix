@@ -210,6 +210,15 @@ def tts():
         print(f"TTS error: {e}")
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/api/clear', methods=['POST'])
+def clear_conversation():
+    """Clear conversation history for current session"""
+    session_id = session.get('session_id', request.remote_addr)
+    if session_id in conversations:
+        conversations[session_id] = []
+    return jsonify({"ok": True})
+
 # WebSocket events for voice
 
 @socketio.on('connect')
