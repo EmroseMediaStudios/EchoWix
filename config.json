@@ -1,5 +1,6 @@
 {
   "name": "EchoWix",
+  "avatar_name": "Steve",
   "voice_id": "Yq69pIOf18GqcL1d3PUq",
   "system_prompt_file": "personality.md",
   "model": "gpt-4o",
