@@ -148,7 +148,7 @@ let socket=null,audioCtx=null,inCall=false,callStream=null,callRec=null;
 let timerInt=null,callSec=0,silTimer=null,chunks=[];
 let aQueue=[],aPlaying=false,analyser=null,vadOn=false;
 let currentAudioSrc=null,aiDoneSpeaking=false,interruptMon=false;
-const SIL_THRESH=0.015,SIL_DUR=1000,INTERRUPT_THRESH=0.025;
+const SIL_THRESH=0.015,SIL_DUR=2500,INTERRUPT_THRESH=0.025;
 
 document.addEventListener('DOMContentLoaded',()=>{
     initSocket();loadConversation();requestLocation();

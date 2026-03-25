@@ -626,7 +626,10 @@ def estimate_max_tokens(user_text):
 
 def build_messages(sid):
     """Build the full message list with system prompt + context + person + memories + history."""
-    msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
+    # Inject current date so Steve knows what year/day it is
+    date_str = time.strftime('%A, %B %d, %Y')
+    time_str = time.strftime('%I:%M %p')
+    msgs = [{"role": "system", "content": SYSTEM_PROMPT + f"\n\nCurrent date and time: {date_str}, {time_str}."}]
     
     # Layer 1: Core identity (always loaded)
     if CONTEXT:
@@ -1053,6 +1056,9 @@ def chat():
     if search_context:
         messages.insert(-1, {"role": "system", "content": search_context})
 
+    # Capture username before entering generator (request context won't exist inside generator)
+    _uname = session.get('username', 'anonymous')
+
     def generate():
         full = ""
         max_tok = estimate_max_tokens(user_message or "")
@@ -1085,7 +1091,6 @@ def chat():
             add_message(sid, "assistant", clean_text.strip())
             if image_urls:
                 yield f"data: {json.dumps({'images': image_urls})}\n\n"
-            _uname = session.get('username', 'anonymous')
             gevent.spawn(extract_memories_async, _uname, user_message or "[image]", clean_text.strip())
             gevent.spawn(extract_family_memories_async, _uname, user_message or "[image]", clean_text.strip())
             gevent.spawn(extract_homework_async, _uname, user_message or "[image]", clean_text.strip())
@@ -1271,6 +1276,22 @@ def handle_call_utterance(data):
             emit('call_transcription', {'role': 'ai', 'text': clean_text})
         if image_urls:
             emit('call_generated_image', {'urls': image_urls})
+
+        # Auto-hangup if Steve said goodbye
+        goodbye_signals = ["love you", "talk later", "talk soon", "get some sleep",
+                          "night night", "goodnight", "good night", "bye", "later",
+                          "take care", "be safe", "peace", "get outta here",
+                          "i'll be around", "i'm here if you need me"]
+        lower_text = clean_text.lower()
+        is_goodbye = any(g in lower_text for g in goodbye_signals)
+        # Only auto-hangup if the USER initiated goodbye (check their last message)
+        user_lower = user_text.lower() if user_text else ""
+        user_said_bye = any(g in user_lower for g in ["bye", "goodnight", "good night",
+                           "gotta go", "talk later", "night", "see you", "love you",
+                           "i'm out", "peace", "later", "heading out", "going to bed",
+                           "going to sleep"])
+        if is_goodbye and user_said_bye:
+            emit('call_auto_hangup')
 
         emit('call_audio_end')
 
