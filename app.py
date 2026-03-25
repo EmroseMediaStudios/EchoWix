@@ -338,8 +338,8 @@ def _load_important_context():
         try:
             with open(IMPORTANT_FILE, 'r') as f:
                 content = f.read().strip()
-                # Only return if there's actual content (not just template placeholders)
-                if content and any(line.strip() and not line.startswith('#') and not line.startswith('-') and not line.startswith('_') and not line.startswith('<!--') for line in content.split('\n') if ':' in line and line.split(':', 1)[1].strip()):
+                # Skip if it's just the empty template
+                if content and 'YOUR_KEY_HERE' not in content:
                     return content
         except IOError:
             pass
@@ -658,7 +658,7 @@ def _strip_latex(text):
     text = re.sub(r'\\text\{(.+?)\}', r'\1', text)
     # Clean up any remaining backslash commands
     text = re.sub(r'\\[a-zA-Z]+\b', '', text)
-    return text.strip()
+    return text
 
 
 def estimate_max_tokens(user_text):
