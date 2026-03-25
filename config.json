@@ -1,7 +1,7 @@
 {
   "name": "WickMind",
   "avatar_name": "Steve",
-  "voice_id": "Yq69pIOf18GqcL1d3PUq",
+  "voice_id": "1VEzQfG12FBTWp5hHpex",
   "system_prompt_file": "personality.md",
   "context_file": "context.md",
   "model": "gpt-4o",
