@@ -58,7 +58,12 @@ def _load_memories_photos():
     if os.path.exists(MEMORIES_JSON):
         try:
             with open(MEMORIES_JSON, 'r') as f:
-                return json.load(f)
+                raw = json.load(f)
+                # Handle both formats: {"photos": [...]} and bare [...]
+                if isinstance(raw, list):
+                    return raw
+                elif isinstance(raw, dict):
+                    return raw.get('photos', [])
         except (json.JSONDecodeError, IOError):
             return []
     return []
@@ -1282,7 +1287,11 @@ def get_photos():
         try:
             with open(mem_file, 'r') as f:
                 data = json.load(f)
-                photos = data.get('photos', [])
+                # Handle both formats: {"photos": [...]} and bare [...]
+                if isinstance(data, list):
+                    photos = data
+                elif isinstance(data, dict):
+                    photos = data.get('photos', [])
         except (json.JSONDecodeError, IOError):
             pass
     return jsonify({"photos": photos})
@@ -1322,7 +1331,12 @@ def upload_photo():
         if os.path.exists(mem_file):
             try:
                 with open(mem_file, 'r') as f:
-                    data = json.load(f)
+                    raw = json.load(f)
+                    # Normalize: bare list → {"photos": list}
+                    if isinstance(raw, list):
+                        data = {"photos": raw}
+                    elif isinstance(raw, dict):
+                        data = raw
             except (json.JSONDecodeError, IOError):
                 pass
         
@@ -1360,7 +1374,11 @@ def save_photo_meta():
     if os.path.exists(mem_file):
         try:
             with open(mem_file, 'r') as f:
-                data = json.load(f)
+                raw = json.load(f)
+                if isinstance(raw, list):
+                    data = {"photos": raw}
+                elif isinstance(raw, dict):
+                    data = raw
         except (json.JSONDecodeError, IOError):
             pass
     
@@ -1408,7 +1426,11 @@ def delete_photo():
     if os.path.exists(mem_file):
         try:
             with open(mem_file, 'r') as f:
-                data = json.load(f)
+                raw = json.load(f)
+                if isinstance(raw, list):
+                    data = {"photos": raw}
+                elif isinstance(raw, dict):
+                    data = raw
         except (json.JSONDecodeError, IOError):
             pass
     
