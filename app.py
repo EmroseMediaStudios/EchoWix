@@ -567,6 +567,33 @@ def should_search(user_text):
     return False
 
 
+def _strip_latex(text):
+    """Strip LaTeX math notation from LLM output — Steve talks like a human, not a textbook."""
+    # Remove \( ... \) inline math delimiters
+    text = re.sub(r'\\\((.+?)\\\)', r'\1', text)
+    # Remove \[ ... \] display math delimiters
+    text = re.sub(r'\\\[(.+?)\\\]', r'\1', text)
+    # Remove $$ ... $$ display math
+    text = re.sub(r'\$\$(.+?)\$\$', r'\1', text)
+    # Remove $ ... $ inline math
+    text = re.sub(r'\$(.+?)\$', r'\1', text)
+    # Replace LaTeX commands with plain text
+    text = re.sub(r'\\div\b', '÷', text)
+    text = re.sub(r'\\times\b', '×', text)
+    text = re.sub(r'\\cdot\b', '·', text)
+    text = re.sub(r'\\pm\b', '±', text)
+    text = re.sub(r'\\approx\b', '≈', text)
+    text = re.sub(r'\\neq\b', '≠', text)
+    text = re.sub(r'\\leq\b', '≤', text)
+    text = re.sub(r'\\geq\b', '≥', text)
+    text = re.sub(r'\\frac\{(.+?)\}\{(.+?)\}', r'\1/\2', text)
+    text = re.sub(r'\\sqrt\{(.+?)\}', r'√\1', text)
+    text = re.sub(r'\\text\{(.+?)\}', r'\1', text)
+    # Clean up any remaining backslash commands
+    text = re.sub(r'\\[a-zA-Z]+\b', '', text)
+    return text.strip()
+
+
 def estimate_max_tokens(user_text):
     """Adaptive max_tokens based on what's being asked.
     Uses loose keyword matching + contextual patterns rather than exact phrases."""
@@ -823,7 +850,7 @@ def get_ai_response(sid, user_text):
         temperature=0.85,
         max_tokens=500,
     )
-    ai_text = resp.choices[0].message.content
+    ai_text = _strip_latex(resp.choices[0].message.content)
     add_message(sid, "assistant", ai_text)
     # Extract memories in background
     username = session.get('username', 'anonymous')
@@ -853,8 +880,9 @@ def stream_ai_sentences(sid, user_text):
     for chunk in stream:
         delta = chunk.choices[0].delta if chunk.choices else None
         if delta and delta.content:
-            buffer += delta.content
-            full += delta.content
+            cleaned = _strip_latex(delta.content)
+            buffer += cleaned
+            full += cleaned
             # Check if we have a complete sentence
             while True:
                 match = re.search(r'[.!?]+\s*', buffer)
@@ -1102,8 +1130,9 @@ def chat():
             for chunk in stream:
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if delta and delta.content:
-                    full += (delta.content or "")
-                    yield f"data: {json.dumps({'text': delta.content})}\n\n"
+                    chunk_text = _strip_latex(delta.content)
+                    full += chunk_text
+                    yield f"data: {json.dumps({'text': chunk_text})}\n\n"
                     # Start image generation as soon as we detect complete tags mid-stream
                     for tag_match in re.finditer(r'\[SHOW_IMAGE:\s*(.+?)\]', full):
                         if tag_match.group(0) not in _started_imgs:
