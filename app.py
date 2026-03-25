@@ -296,6 +296,33 @@ def should_search(user_text):
     return False
 
 
+def estimate_max_tokens(user_text):
+    """Adaptive max_tokens based on what's being asked."""
+    text = user_text.lower().strip()
+    # Long-form content requests
+    long_signals = [
+        "story", "bedtime", "tell me a story", "once upon", "fairy tale",
+        "explain how", "walk me through", "teach me", "break down",
+        "summarize", "summary", "overview", "tell me everything",
+        "help me with this", "worksheet", "homework", "assignment",
+        "write", "draft", "compose", "create",
+    ]
+    for signal in long_signals:
+        if signal in text:
+            return 2500
+    # Medium-form (explanations, how-to)
+    medium_signals = [
+        "explain", "how does", "how do", "why does", "why do",
+        "what happens", "difference between", "compare",
+        "help me understand", "what do you think about",
+    ]
+    for signal in medium_signals:
+        if signal in text:
+            return 1500
+    # Default conversational
+    return 1000
+
+
 def build_messages(sid):
     """Build the full message list with system prompt + context + person + memories + history."""
     msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -697,13 +724,14 @@ def chat():
 
     def generate():
         full = ""
+        max_tok = estimate_max_tokens(user_message or "")
         try:
             stream = openai.chat.completions.create(
                 model=CONFIG.get('model', 'gpt-4o'),
                 messages=messages,
                 stream=True,
                 temperature=0.85,
-                max_tokens=1000,
+                max_tokens=max_tok,
             )
             for chunk in stream:
                 delta = chunk.choices[0].delta if chunk.choices else None
