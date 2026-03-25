@@ -297,31 +297,67 @@ def should_search(user_text):
 
 
 def estimate_max_tokens(user_text):
-    """Adaptive max_tokens based on what's being asked."""
+    """Adaptive max_tokens based on what's being asked.
+    Uses loose keyword matching + contextual patterns rather than exact phrases."""
     text = user_text.lower().strip()
-    # Long-form content requests
-    long_signals = [
-        "story", "bedtime", "tell me a story", "once upon", "fairy tale",
-        "explain how", "walk me through", "teach me", "break down",
-        "summarize", "summary", "overview", "tell me everything",
-        "help me with this", "worksheet", "homework", "assignment",
-        "write", "draft", "compose", "create",
-        "do you remember", "remember when", "remember that time",
-        "tell me about the time", "what about when",
-    ]
-    for signal in long_signals:
-        if signal in text:
-            return 2500
-    # Medium-form (explanations, how-to)
-    medium_signals = [
-        "explain", "how does", "how do", "why does", "why do",
-        "what happens", "difference between", "compare",
-        "help me understand", "what do you think about",
-    ]
-    for signal in medium_signals:
-        if signal in text:
-            return 1500
-    # Default conversational
+    words = set(text.split())
+
+    # ---- LONG-FORM (2500 tokens) ----
+    # Stories / creative
+    story_words = {"story", "stories", "bedtime", "fairytale", "fairy", "tale",
+                   "adventure", "fable", "legend", "myth", "narrative"}
+    if story_words & words:
+        return 2500
+    story_phrases = ["once upon", "make up", "make something up", "tell me one",
+                     "tell me another", "one more", "keep going", "what happens next",
+                     "tell it again"]
+    if any(p in text for p in story_phrases):
+        return 2500
+
+    # Memory recall / nostalgia
+    memory_words = {"remember", "reminds", "reminded", "nostalgia", "nostalgic",
+                    "recall", "recalled", "forgot", "forgotten"}
+    memory_triggers = ["that time", "back when", "used to", "years ago",
+                       "when we", "when i was", "when you", "the trip",
+                       "that day", "that night", "that one time"]
+    if memory_words & words and any(t in text for t in memory_triggers):
+        return 2500
+    if any(p in text for p in ["do you remember", "remember when", "remember that",
+                                "tell me about the time", "what about when",
+                                "you ever think about"]):
+        return 2500
+
+    # Teaching / homework / deep explanation
+    teach_words = {"worksheet", "homework", "assignment", "problem", "equation",
+                   "quiz", "test", "exam", "lesson", "tutorial"}
+    if teach_words & words:
+        return 2500
+    teach_phrases = ["walk me through", "break it down", "break down",
+                     "teach me", "help me understand", "help me with",
+                     "explain it like", "dumb it down", "in simple terms",
+                     "tell me everything", "give me the full", "from the beginning"]
+    if any(p in text for p in teach_phrases):
+        return 2500
+
+    # Writing / creating content
+    write_words = {"write", "draft", "compose", "create", "summarize", "summary",
+                   "overview", "recap", "outline"}
+    if write_words & words and len(text.split()) >= 4:
+        return 2500
+
+    # ---- MEDIUM-FORM (1500 tokens) ----
+    explain_phrases = ["explain", "how does", "how do", "why does", "why do",
+                       "what happens when", "difference between", "compare",
+                       "what do you think about", "what's your take",
+                       "pros and cons", "is it worth", "should i"]
+    if any(p in text for p in explain_phrases):
+        return 1500
+
+    # Longer questions (8+ words with a question mark) likely need more room
+    if "?" in text and len(text.split()) >= 8:
+        return 1500
+
+    # ---- DEFAULT CONVERSATIONAL (1000 tokens) ----
     return 1000
 
 
