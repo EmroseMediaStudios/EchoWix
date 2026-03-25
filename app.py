@@ -1444,9 +1444,33 @@ def handle_call_utterance(data):
 
         # 2. Stream GPT response → TTS each sentence as it completes
         full_text = ""
+        pending_image_prompts = []
+        pending_memory_files = []
         for sentence in stream_ai_sentences(sid, user_text):
-            # Skip special tags in TTS — don't read them aloud
-            if '[SHOW_IMAGE:' in sentence or '[PLAY_SOUND:' in sentence or '[STOP_SOUND]' in sentence or '[SHOW_MEMORY:' in sentence:
+            # Detect and collect image/memory tags — don't TTS them
+            if '[SHOW_IMAGE:' in sentence:
+                for m in re.finditer(r'\[SHOW_IMAGE:\s*(.+?)\]', sentence):
+                    pending_image_prompts.append(m.group(1).strip())
+                clean_sentence = re.sub(r'\[SHOW_IMAGE:[^\]]+\]', '', sentence).strip()
+                full_text += (" " if full_text else "") + sentence
+                if clean_sentence:
+                    audio = tts_call(clean_sentence)
+                    if audio:
+                        b64 = base64.b64encode(audio).decode('utf-8')
+                        emit('call_audio', {'data': b64})
+                continue
+            if '[SHOW_MEMORY:' in sentence:
+                for m in re.finditer(r'\[SHOW_MEMORY:\s*(.+?)\]', sentence):
+                    pending_memory_files.append(m.group(1).strip())
+                clean_sentence = re.sub(r'\[SHOW_MEMORY:[^\]]+\]', '', sentence).strip()
+                full_text += (" " if full_text else "") + sentence
+                if clean_sentence:
+                    audio = tts_call(clean_sentence)
+                    if audio:
+                        b64 = base64.b64encode(audio).decode('utf-8')
+                        emit('call_audio', {'data': b64})
+                continue
+            if '[PLAY_SOUND:' in sentence or '[STOP_SOUND]' in sentence:
                 full_text += (" " if full_text else "") + sentence
                 continue
             full_text += (" " if full_text else "") + sentence
@@ -1455,21 +1479,58 @@ def handle_call_utterance(data):
                 b64 = base64.b64encode(audio).decode('utf-8')
                 emit('call_audio', {'data': b64})
 
-        # Check for image generation tags in full response
+        # Now handle images — memory photos first (instant), then DALL-E
         image_urls = []
-        clean_text = full_text
-        for match in re.finditer(r'\[SHOW_IMAGE:\s*(.+?)\]', full_text):
-            img_prompt = match.group(1).strip()
-            img_url = generate_explanation_image(img_prompt)
-            if img_url:
-                image_urls.append(img_url)
-            clean_text = clean_text.replace(match.group(0), '')
-        # Extract memory photos
-        for match in re.finditer(r'\[SHOW_MEMORY:\s*(.+?)\]', full_text):
-            mem_file = match.group(1).strip()
+        
+        # Memory photos — instant
+        for mem_file in pending_memory_files:
             mem_path = os.path.join(MEMORIES_PHOTOS_DIR, os.path.basename(mem_file))
             if os.path.exists(mem_path):
                 image_urls.append(f"/api/memory_photo/{os.path.basename(mem_file)}")
+        
+        if image_urls:
+            emit('call_generated_image', {'urls': image_urls})
+            # React to the memory photo
+            import random
+            react = random.choice([
+                "There it is.",
+                "Man, look at that.",
+                "That takes me back.",
+                "I love that one.",
+            ])
+            audio = tts_call(react)
+            if audio:
+                b64 = base64.b64encode(audio).decode('utf-8')
+                emit('call_audio', {'data': b64})
+        
+        # DALL-E images — takes a few seconds
+        dalle_urls = []
+        for img_prompt in pending_image_prompts:
+            img_url = generate_explanation_image(img_prompt)
+            if img_url:
+                dalle_urls.append(img_url)
+        
+        if dalle_urls:
+            emit('call_generated_image', {'urls': dalle_urls})
+            # React after image shows up
+            import random
+            react = random.choice([
+                "There you go.",
+                "How's that look?",
+                "Pretty cool, right?",
+                "See what I mean?",
+                "There it is.",
+            ])
+            audio = tts_call(react)
+            if audio:
+                b64 = base64.b64encode(audio).decode('utf-8')
+                emit('call_audio', {'data': b64})
+
+        # Build clean text for transcript
+        clean_text = full_text
+        for match in re.finditer(r'\[SHOW_IMAGE:\s*(.+?)\]', full_text):
+            clean_text = clean_text.replace(match.group(0), '')
+        for match in re.finditer(r'\[SHOW_MEMORY:\s*(.+?)\]', full_text):
             clean_text = clean_text.replace(match.group(0), '')
         clean_text = re.sub(r'\[PLAY_SOUND:\s*\w+\]', '', clean_text)
         clean_text = clean_text.replace('[STOP_SOUND]', '')
