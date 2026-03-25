@@ -61,3 +61,17 @@ electron/dist/
 electron/python-mac/
 electron/python-win/
 electron/bundled.env
+
+# Python virtual env
+.venv/
+
+# User data (local only)
+.homework/
+.quizzes/
+.memories/
+.conversations/
+.tts_cache/
+users.json
+
+# macOS app bundle
+*.app/
