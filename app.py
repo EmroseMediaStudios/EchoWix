@@ -993,6 +993,7 @@ def stream_ai_sentences(sid, user_text):
     
     buffer = ""
     full = ""
+    held_short = ""  # Hold short sentences to merge with the next one
     for chunk in stream:
         delta = chunk.choices[0].delta if chunk.choices else None
         if delta and delta.content:
@@ -1005,13 +1006,27 @@ def stream_ai_sentences(sid, user_text):
                     sentence = _strip_latex(buffer[:match.end()])
                     buffer = buffer[match.end():]
                     if sentence.strip():
-                        yield sentence.strip()
+                        # Merge short sentences (under 3 words) with the next one
+                        # to avoid TTS pitch spikes on "Hello?" "Right!" "Sure."
+                        word_count = len(sentence.strip().split())
+                        if word_count < 3 and not held_short:
+                            held_short = sentence.strip()
+                        elif held_short:
+                            yield held_short + " " + sentence.strip()
+                            held_short = ""
+                        else:
+                            yield sentence.strip()
                 else:
                     break
     
-    # Yield remaining text
-    if buffer.strip():
-        yield _strip_latex(buffer).strip()
+    # Yield remaining text (including any held short sentence)
+    remaining = _strip_latex(buffer).strip() if buffer.strip() else ""
+    if held_short and remaining:
+        yield held_short + " " + remaining
+    elif held_short:
+        yield held_short
+    elif remaining:
+        yield remaining
     
     add_message(sid, "assistant", _strip_latex(full))
     # Extract memories in background
