@@ -1088,6 +1088,8 @@ def chat():
 
     def generate():
         full = ""
+        _started_imgs = set()  # Track which SHOW_IMAGE tags we've started generating
+        _img_futures = []      # Greenlet futures for parallel image generation
         max_tok = estimate_max_tokens(user_message or "")
         try:
             stream = openai.chat.completions.create(
@@ -1102,15 +1104,16 @@ def chat():
                 if delta and delta.content:
                     full += (delta.content or "")
                     yield f"data: {json.dumps({'text': delta.content})}\n\n"
-            # Check for image generation tags in the response
-            image_urls = []
+                    # Start image generation as soon as we detect complete tags mid-stream
+                    for tag_match in re.finditer(r'\[SHOW_IMAGE:\s*(.+?)\]', full):
+                        if tag_match.group(0) not in _started_imgs:
+                            _started_imgs.add(tag_match.group(0))
+                            _img_futures.append(gevent.spawn(generate_explanation_image, tag_match.group(1).strip()))
+            # Collect any image results (started during streaming, should be mostly done)
+            image_urls = [f.value for f in gevent.joinall(_img_futures, timeout=20) if f.value]
             clean_text = full
             # Strip all special tags
             for match in re.finditer(r'\[SHOW_IMAGE:\s*(.+?)\]', full):
-                img_prompt = match.group(1).strip()
-                img_url = generate_explanation_image(img_prompt)
-                if img_url:
-                    image_urls.append(img_url)
                 clean_text = clean_text.replace(match.group(0), '')
             clean_text = re.sub(r'\[PLAY_SOUND:\s*\w+\]', '', clean_text)
             clean_text = clean_text.replace('[STOP_SOUND]', '')

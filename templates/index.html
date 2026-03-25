@@ -61,8 +61,9 @@
         .text-input::placeholder{color:var(--text3)}
         .attach-btn{width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;font-size:1.2rem;color:var(--text3)}
         .attach-btn:hover{background:rgba(255,255,255,0.08);color:var(--text1)}
-        .img-preview{position:relative;display:inline-block;margin:4px 8px;max-height:60px}
-        .img-preview img{max-height:60px;border-radius:8px;border:1px solid var(--border)}
+        .img-preview{position:relative;display:inline-block;margin:4px 8px;max-height:100px}
+        .img-preview img{max-height:100px;border-radius:8px;border:1px solid var(--border);cursor:pointer;transition:transform 0.2s}
+        .img-preview img:hover{transform:scale(1.05)}
         .img-preview .remove-img{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--red);color:#fff;border:none;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;line-height:1}
         .send-btn{width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,0.06);background:linear-gradient(135deg,var(--blue),var(--orange));cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;overflow:hidden;color:#fff}
         .send-btn:hover{transform:scale(1.05);box-shadow:0 0 15px var(--blue-glow)}
@@ -86,7 +87,14 @@
         .call-hangup img{width:84px;height:84px;object-fit:cover;border-radius:50%}
         .call-upload-btn{width:64px;height:64px;border-radius:50%;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;font-size:1.5rem;color:var(--text2)}
         .call-upload-btn:hover{background:rgba(255,255,255,0.1);transform:scale(1.05)}
-        .call-img-thumb{max-width:120px;max-height:90px;border-radius:8px;border:1px solid var(--border);margin:4px auto;display:block}
+        .call-img-thumb{max-width:120px;max-height:90px;border-radius:8px;border:1px solid var(--border);margin:4px auto;display:block;cursor:pointer;transition:transform 0.2s}
+        .call-img-thumb:hover{transform:scale(1.05)}
+        /* Lightbox */
+        .lightbox{display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.92);backdrop-filter:blur(8px);align-items:center;justify-content:center;cursor:pointer}
+        .lightbox.active{display:flex}
+        .lightbox img{max-width:90vw;max-height:90vh;border-radius:12px;box-shadow:0 0 40px rgba(0,0,0,0.5)}
+        .lightbox .lb-close{position:absolute;top:20px;right:24px;color:#fff;font-size:2rem;cursor:pointer;opacity:0.7;transition:opacity 0.2s}
+        .lightbox .lb-close:hover{opacity:1}
         .clear-menu{display:none;position:absolute;top:52px;right:12px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:5px;z-index:30;box-shadow:0 8px 30px rgba(0,0,0,0.5)}
         .clear-menu.show{display:block}
         .clear-menu button{display:block;width:100%;padding:7px 14px;background:transparent;border:none;color:var(--text2);font-size:0.8rem;cursor:pointer;border-radius:6px;text-align:left;font-family:inherit;white-space:nowrap}
@@ -133,6 +141,7 @@
             <div class="call-status" id="callStatus">Connecting...</div>
             <div class="call-timer" id="callTimer">0:00</div>
             <div id="callImagePreview" style="display:none;margin:8px auto;text-align:center;"></div>
+            <div id="callUploadPreview" style="display:none;margin:4px auto;text-align:center;"></div>
             <div class="call-transcript" id="callTranscript"></div>
             <div style="display:flex;gap:16px;align-items:center;">
               <input type="file" id="callImageInput" accept="image/*" style="display:none" onchange="sendCallImage(this)">
@@ -164,12 +173,12 @@ function initSocket(){
             const prev=document.getElementById('callImagePreview');
             prev.style.display='block';
             let html='';
-            d.urls.forEach(url=>{html+=`<img src="${url}" class="call-img-thumb" style="max-width:200px;max-height:200px;cursor:pointer;" onclick="window.open(this.src,'_blank')">`;});
+            d.urls.forEach(url=>{html+=`<img src="${url}" class="call-img-thumb" style="max-width:200px;max-height:200px;cursor:pointer;" onclick="openLightbox(this.src)">`;});
             prev.innerHTML=html;
             // Also add to chat messages
             d.urls.forEach(url=>{addMessage('ai','[generated an image]');
                 const c=document.getElementById('messages'),lastRow=c.lastElementChild;
-                if(lastRow){const bubble=lastRow.querySelector('.msg-bubble');if(bubble){bubble.innerHTML=`<img src="${url}" style="max-width:100%;border-radius:8px;cursor:pointer;" onclick="window.open(this.src,'_blank')">`;}}
+                if(lastRow){const bubble=lastRow.querySelector('.msg-bubble');if(bubble){bubble.innerHTML=`<img src="${url}" style="max-width:100%;border-radius:8px;cursor:pointer;" onclick="openLightbox(this.src)">`;}}
             });
         }
     });
@@ -203,7 +212,7 @@ function previewImage(input){
     reader.onload=e=>{
         const prev=document.getElementById('imagePreview');
         prev.style.display='block';
-        prev.innerHTML=`<div class="img-preview"><img src="${e.target.result}"><button class="remove-img" onclick="clearImage()">✕</button></div>`;
+        prev.innerHTML=`<div class="img-preview"><img src="${e.target.result}" onclick="openLightbox(this.src)"><button class="remove-img" onclick="clearImage()">✕</button></div>`;
     };
     reader.readAsDataURL(file);
 }
@@ -218,7 +227,8 @@ function sendMessage(){
         // Show image thumbnail in user message
         const lastMsg=document.querySelector('.msg-row.user:last-of-type .msg-bubble');
         if(lastMsg&&prev.querySelector('img')){
-            const imgEl=document.createElement('img');imgEl.src=prev.querySelector('img').src;imgEl.style.cssText='max-width:200px;max-height:150px;border-radius:8px;display:block;margin-top:6px;';
+            const imgEl=document.createElement('img');imgEl.src=prev.querySelector('img').src;imgEl.style.cssText='max-width:200px;max-height:150px;border-radius:8px;display:block;margin-top:6px;cursor:pointer;';
+            imgEl.onclick=function(){openLightbox(this.src);};
             lastMsg.appendChild(imgEl);
         }
     }
@@ -254,7 +264,7 @@ function handleStream(res){
                     d.images.forEach(url=>{
                         const c=document.getElementById('messages'),r=document.createElement('div');
                         r.className='msg-row ai';
-                        r.innerHTML=`${aiAv()}<div class="msg-body"><div class="msg-bubble"><img src="${url}" style="max-width:100%;border-radius:8px;margin:4px 0;cursor:pointer;" onclick="window.open(this.src,'_blank')"></div><div class="msg-meta">${ts()}</div></div>`;
+                        r.innerHTML=`${aiAv()}<div class="msg-body"><div class="msg-bubble"><img src="${url}" style="max-width:100%;border-radius:8px;margin:4px 0;cursor:pointer;" onclick="openLightbox(this.src)"></div><div class="msg-meta">${ts()}</div></div>`;
                         c.appendChild(r);c.scrollTop=c.scrollHeight;
                     });
                 }
@@ -294,6 +304,11 @@ function endCall(){
     aQueue=[];aPlaying=false;
     document.getElementById('callBtn').classList.remove('active');
     document.getElementById('callOverlay').classList.remove('active');
+    // Clear all images from call overlay
+    const callImgPrev=document.getElementById('callImagePreview');
+    if(callImgPrev){callImgPrev.style.display='none';callImgPrev.innerHTML='';}
+    const callUploadPrev=document.getElementById('callUploadPreview');
+    if(callUploadPrev){callUploadPrev.style.display='none';callUploadPrev.innerHTML='';}
     socket.emit('call_end');
 }
 function startListen(){
@@ -391,10 +406,10 @@ function sendCallImage(input){
     reader.onload=e=>{
         const b64=e.target.result.split(',')[1];
         const mime=file.type||'image/jpeg';
-        // Show thumbnail in call
-        const prev=document.getElementById('callImagePreview');
+        // Show thumbnail in call (upload preview area, clears on call end)
+        const prev=document.getElementById('callUploadPreview');
         prev.style.display='block';
-        prev.innerHTML=`<img src="${e.target.result}" class="call-img-thumb">`;
+        prev.innerHTML=`<img src="${e.target.result}" class="call-img-thumb" onclick="openLightbox(this.src)">`;
         // Show in transcript
         setTranscript('user','[sent a photo]');
         addMessage('user','[sent a photo]');
@@ -411,7 +426,7 @@ function saveConversation(){
     });localStorage.setItem(STORAGE_KEY,JSON.stringify(msgs.slice(-40)));
 }
 function loadConversation(){try{const s=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');for(const m of s)addMessage(m.role==='assistant'?'ai':'user',m.content);}catch(e){}}
-function clearConversation(){localStorage.removeItem(STORAGE_KEY);document.getElementById('messages').innerHTML='';fetch('/api/clear',{method:'POST',credentials:'same-origin'}).catch(()=>{});}
+function clearConversation(){localStorage.removeItem(STORAGE_KEY);document.getElementById('messages').innerHTML='';clearImage();fetch('/api/clear',{method:'POST',credentials:'same-origin'}).catch(()=>{});}
 function toggleMenu(){document.getElementById('clearMenu').classList.toggle('show');}
 document.addEventListener('click',e=>{if(!e.target.closest('.hdr-btn')&&!e.target.closest('.clear-menu'))document.getElementById('clearMenu').classList.remove('show');});
 
@@ -436,6 +451,16 @@ function playAmbient(name){
     saveConversation();
 }
 function stopAmbient(){if(ambientAudio){ambientAudio.pause();ambientAudio.src='';ambientAudio=null;}}
+
+// ---- LIGHTBOX ----
+function openLightbox(src){document.getElementById('lightboxImg').src=src;document.getElementById('lightbox').classList.add('active');}
+function closeLightbox(){document.getElementById('lightbox').classList.remove('active');document.getElementById('lightboxImg').src='';}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLightbox();});
 </script>
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <span class="lb-close">✕</span>
+    <img id="lightboxImg" src="" onclick="event.stopPropagation();">
+</div>
 </body>
 </html>
