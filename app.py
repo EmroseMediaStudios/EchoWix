@@ -599,16 +599,24 @@ def estimate_max_tokens(user_text):
         return 2500
 
     # Teaching / homework / deep explanation
+    # Keep these SHORT — Steve teaches one step at a time, asks a question, waits
     teach_words = {"worksheet", "homework", "assignment", "problem", "equation",
                    "quiz", "test", "exam", "lesson", "tutorial"}
     if teach_words & words:
-        return 2500
+        return 800
     teach_phrases = ["walk me through", "break it down", "break down",
                      "teach me", "help me understand", "help me with",
                      "explain it like", "dumb it down", "in simple terms",
                      "tell me everything", "give me the full", "from the beginning"]
     if any(p in text for p in teach_phrases):
-        return 2500
+        return 1000
+
+    # Short answers during teaching flow (answering Steve's questions)
+    # These should be short because Steve's follow-up should be one step + one question
+    short_answer_words = {"yes", "no", "right", "wrong", "correct", "idk",
+                          "i don't know", "maybe", "i think", "um", "uh"}
+    if len(text.split()) <= 5 and (words & short_answer_words or text.replace(' ','').isdigit()):
+        return 800
 
     # Writing / creating content
     write_words = {"write", "draft", "compose", "create", "summarize", "summary",
