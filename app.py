@@ -261,6 +261,247 @@ Return ONLY the JSON array, no other text."""},
         print(f"Memory extraction error: {e}")
 
 
+# ---- SHARED FAMILY MEMORIES ----
+
+FAMILY_MEMORY_FILE = os.path.join(os.path.dirname(__file__), '.memories', '_family.json')
+
+def load_family_memories():
+    if os.path.exists(FAMILY_MEMORY_FILE):
+        try:
+            with open(FAMILY_MEMORY_FILE, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return []
+    return []
+
+def save_family_memories(memories):
+    with open(FAMILY_MEMORY_FILE, 'w') as f:
+        json.dump(memories, f, indent=2)
+
+def search_family_memories(query, max_results=5):
+    """Search shared family memories."""
+    memories = load_family_memories()
+    if not memories:
+        return []
+    query_words = set(query.lower().split())
+    scored = []
+    for mem in memories:
+        mem_text = mem.get('content', '').lower()
+        matches = sum(1 for w in query_words if w in mem_text and len(w) > 2)
+        if matches > 0:
+            scored.append((matches, mem))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [m for _, m in scored[:max_results]]
+
+def extract_family_memories_async(username, user_text, ai_text):
+    """Extract family-relevant memories (events, plans, schedules, shared news)."""
+    try:
+        resp = openai.chat.completions.create(
+            model='gpt-4o-mini',
+            messages=[
+                {"role": "system", "content": """Extract ONLY family-relevant facts from this conversation — things that other family members would benefit from knowing. Return a JSON array of short memory strings.
+
+Good family memories:
+- "Family vacation to Florida planned for spring break"
+- "Emma has a math test on Thursday"
+- "Kim's birthday is coming up — she mentioned wanting a spa day"
+- "Drew is visiting this weekend"
+- "Family movie night planned for Saturday"
+- "Emma learned to ride a bike today"
+
+NOT family memories (keep these private/per-user):
+- Personal feelings, venting, relationship concerns
+- Private conversations about another family member
+- Work stress, personal struggles
+- Anything that feels like it was shared in confidence
+
+If nothing is family-relevant, return an empty array: []
+Return ONLY the JSON array."""},
+                {"role": "user", "content": f"User ({username}) said: {user_text}\n\nSteve replied: {ai_text}"}
+            ],
+            temperature=0.3,
+            max_tokens=200,
+        )
+        raw = resp.choices[0].message.content.strip()
+        if raw.startswith('['):
+            new_memories = json.loads(raw)
+        else:
+            match = re.search(r'\[.*\]', raw, re.DOTALL)
+            if match:
+                new_memories = json.loads(match.group())
+            else:
+                return
+        if not new_memories:
+            return
+        existing = load_family_memories()
+        timestamp = time.strftime('%Y-%m-%d %H:%M')
+        for mem_text in new_memories:
+            if isinstance(mem_text, str) and mem_text.strip():
+                existing.append({
+                    'content': mem_text.strip(),
+                    'timestamp': timestamp,
+                    'from_user': username,
+                })
+        if len(existing) > 300:
+            existing = existing[-300:]
+        save_family_memories(existing)
+    except Exception as e:
+        print(f"Family memory extraction error: {e}")
+
+
+# ---- HOMEWORK HISTORY ----
+
+HOMEWORK_DIR = os.path.join(os.path.dirname(__file__), '.homework')
+os.makedirs(HOMEWORK_DIR, exist_ok=True)
+
+def _homework_path(username):
+    return os.path.join(HOMEWORK_DIR, f"{username}.json")
+
+def load_homework_history(username, max_entries=20):
+    path = _homework_path(username)
+    if os.path.exists(path):
+        try:
+            with open(path, 'r') as f:
+                entries = json.load(f)
+                return entries[-max_entries:]
+        except (json.JSONDecodeError, IOError):
+            return []
+    return []
+
+def save_homework_entry(username, entry):
+    path = _homework_path(username)
+    entries = []
+    if os.path.exists(path):
+        try:
+            with open(path, 'r') as f:
+                entries = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            entries = []
+    entries.append(entry)
+    if len(entries) > 100:
+        entries = entries[-100:]
+    with open(path, 'w') as f:
+        json.dump(entries, f, indent=2)
+
+def extract_homework_async(username, user_text, ai_text):
+    """Detect if this was a homework/learning interaction and log it."""
+    try:
+        resp = openai.chat.completions.create(
+            model='gpt-4o-mini',
+            messages=[
+                {"role": "system", "content": """Was this conversation about homework, studying, learning, or educational help? If yes, extract the details. Return a JSON object:
+
+{"is_homework": true, "subject": "math", "topic": "fractions - adding with different denominators", "difficulty": "medium", "outcome": "understood after explanation"}
+
+If it was NOT homework/educational, return: {"is_homework": false}
+Return ONLY the JSON object."""},
+                {"role": "user", "content": f"User said: {user_text}\n\nSteve replied: {ai_text}"}
+            ],
+            temperature=0.2,
+            max_tokens=150,
+        )
+        raw = resp.choices[0].message.content.strip()
+        if '{' in raw:
+            match = re.search(r'\{.*\}', raw, re.DOTALL)
+            if match:
+                data = json.loads(match.group())
+                if data.get('is_homework'):
+                    data['timestamp'] = time.strftime('%Y-%m-%d %H:%M')
+                    data['user'] = username
+                    save_homework_entry(username, data)
+    except Exception as e:
+        print(f"Homework extraction error: {e}")
+
+
+# ---- QUIZ STATE ----
+
+QUIZ_DIR = os.path.join(os.path.dirname(__file__), '.quizzes')
+os.makedirs(QUIZ_DIR, exist_ok=True)
+
+def _quiz_path(username):
+    return os.path.join(QUIZ_DIR, f"{username}.json")
+
+def load_quiz_state(username):
+    path = _quiz_path(username)
+    if os.path.exists(path):
+        try:
+            with open(path, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return {}
+    return {}
+
+def save_quiz_state(username, state):
+    path = _quiz_path(username)
+    with open(path, 'w') as f:
+        json.dump(state, f, indent=2)
+
+def get_quiz_context(username):
+    """Build context about quiz history for injection into system prompt."""
+    state = load_quiz_state(username)
+    if not state:
+        return ""
+    history = state.get('history', [])
+    if not history:
+        return ""
+    recent = history[-10:]
+    lines = []
+    for h in recent:
+        lines.append(f"- {h.get('subject', 'unknown')}: {h.get('correct', 0)}/{h.get('total', 0)} correct ({h.get('date', '')})")
+    return "Recent quiz history for this person:\n" + "\n".join(lines)
+
+def extract_quiz_results_async(username, user_text, ai_text):
+    """Detect if a quiz just happened and track results."""
+    try:
+        resp = openai.chat.completions.create(
+            model='gpt-4o-mini',
+            messages=[
+                {"role": "system", "content": """Was this a quiz or test exchange? If Steve asked a question and the user answered, extract:
+{"is_quiz": true, "subject": "spelling", "question": "How do you spell 'necessary'?", "user_answer": "neccesary", "correct": false, "correct_answer": "necessary"}
+
+If no quiz happened, return: {"is_quiz": false}
+Return ONLY the JSON object."""},
+                {"role": "user", "content": f"User said: {user_text}\n\nSteve replied: {ai_text}"}
+            ],
+            temperature=0.2,
+            max_tokens=150,
+        )
+        raw = resp.choices[0].message.content.strip()
+        if '{' in raw:
+            match = re.search(r'\{.*\}', raw, re.DOTALL)
+            if match:
+                data = json.loads(match.group())
+                if data.get('is_quiz'):
+                    state = load_quiz_state(username)
+                    # Update current session
+                    session_quiz = state.get('current', {})
+                    session_quiz['total'] = session_quiz.get('total', 0) + 1
+                    if data.get('correct'):
+                        session_quiz['correct'] = session_quiz.get('correct', 0) + 1
+                    session_quiz['subject'] = data.get('subject', session_quiz.get('subject', 'general'))
+                    state['current'] = session_quiz
+                    # Questions log
+                    questions = state.get('questions', [])
+                    questions.append({
+                        'question': data.get('question', ''),
+                        'user_answer': data.get('user_answer', ''),
+                        'correct': data.get('correct', False),
+                        'correct_answer': data.get('correct_answer', ''),
+                        'timestamp': time.strftime('%Y-%m-%d %H:%M'),
+                    })
+                    if len(questions) > 200:
+                        questions = questions[-200:]
+                    state['questions'] = questions
+                    save_quiz_state(username, state)
+    except Exception as e:
+        print(f"Quiz extraction error: {e}")
+
+
+# ---- LOCATION ----
+
+USER_LOCATIONS = {}  # In-memory: {username: {"lat": x, "lon": y, "city": "", "updated": timestamp}}
+
+
 # ---- WEB SEARCH ----
 
 def web_search(query, max_results=5):
@@ -410,6 +651,28 @@ def build_messages(sid):
         if relevant:
             mem_text = "\n".join(f"- {m['content']} ({m.get('timestamp', '')})" for m in relevant)
             msgs.append({"role": "system", "content": f"Things you remember from past conversations with this person (use naturally, don't list them off):\n{mem_text}"})
+        
+        # Layer 4: Shared family memories
+        family_mems = search_family_memories(last_user_msg)
+        if family_mems:
+            fam_text = "\n".join(f"- {m['content']} (from {m.get('from_user', 'family')}, {m.get('timestamp', '')})" for m in family_mems)
+            msgs.append({"role": "system", "content": f"Things you know from other family members (use naturally — you learned this from family conversations, don't say 'your mom told me' unless it's appropriate):\n{fam_text}"})
+    
+    # Layer 5: Homework history
+    hw_history = load_homework_history(username, max_entries=5)
+    if hw_history:
+        hw_text = "\n".join(f"- {h.get('subject', '?')}: {h.get('topic', '?')} ({h.get('outcome', '?')}, {h.get('timestamp', '')})" for h in hw_history[-5:])
+        msgs.append({"role": "system", "content": f"Recent homework/learning sessions with this person:\n{hw_text}\nUse this to track patterns — if they've been struggling with something, offer extra help. If they mastered it, acknowledge growth."})
+    
+    # Layer 6: Quiz context
+    quiz_ctx = get_quiz_context(username)
+    if quiz_ctx:
+        msgs.append({"role": "system", "content": f"{quiz_ctx}\nReference past quiz performance naturally when quizzing — celebrate improvement, encourage on weak areas."})
+    
+    # Layer 7: Location awareness
+    loc = USER_LOCATIONS.get(username)
+    if loc and loc.get('city'):
+        msgs.append({"role": "system", "content": f"This person is currently in {loc['city']}. Use this naturally when relevant (weather, local recommendations, time-aware responses). Don't mention their location unprompted."})
     
     msgs.extend(history)
     return msgs
@@ -535,6 +798,9 @@ def get_ai_response(sid, user_text):
     # Extract memories in background
     username = session.get('username', 'anonymous')
     gevent.spawn(extract_memories_async, username, user_text, ai_text)
+    gevent.spawn(extract_family_memories_async, username, user_text, ai_text)
+    gevent.spawn(extract_homework_async, username, user_text, ai_text)
+    gevent.spawn(extract_quiz_results_async, username, user_text, ai_text)
     return ai_text
 
 
@@ -578,6 +844,9 @@ def stream_ai_sentences(sid, user_text):
     # Extract memories in background
     username = session.get('username', 'anonymous')
     gevent.spawn(extract_memories_async, username, user_text, full)
+    gevent.spawn(extract_family_memories_async, username, user_text, full)
+    gevent.spawn(extract_homework_async, username, user_text, full)
+    gevent.spawn(extract_quiz_results_async, username, user_text, full)
 
 
 # ---- TTS CACHE ----
@@ -803,17 +1072,24 @@ def chat():
             # Check for image generation tags in the response
             image_urls = []
             clean_text = full
+            # Strip all special tags
             for match in re.finditer(r'\[SHOW_IMAGE:\s*(.+?)\]', full):
                 img_prompt = match.group(1).strip()
                 img_url = generate_explanation_image(img_prompt)
                 if img_url:
                     image_urls.append(img_url)
                 clean_text = clean_text.replace(match.group(0), '')
+            clean_text = re.sub(r'\[PLAY_SOUND:\s*\w+\]', '', clean_text)
+            clean_text = clean_text.replace('[STOP_SOUND]', '')
+            clean_text = clean_text.strip()
             add_message(sid, "assistant", clean_text.strip())
             if image_urls:
                 yield f"data: {json.dumps({'images': image_urls})}\n\n"
             _uname = session.get('username', 'anonymous')
             gevent.spawn(extract_memories_async, _uname, user_message or "[image]", clean_text.strip())
+            gevent.spawn(extract_family_memories_async, _uname, user_message or "[image]", clean_text.strip())
+            gevent.spawn(extract_homework_async, _uname, user_message or "[image]", clean_text.strip())
+            gevent.spawn(extract_quiz_results_async, _uname, user_message or "[image]", clean_text.strip())
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as e:
             print(f"Chat error: {e}")
@@ -846,6 +1122,58 @@ def clear_conversation():
     sid = get_user_sid()
     clear_user_conversation(sid)
     return jsonify({"ok": True})
+
+
+@app.route('/api/location', methods=['POST'])
+@login_required
+def update_location():
+    """Receive user's location from browser geolocation API."""
+    data = request.get_json()
+    lat = data.get('lat')
+    lon = data.get('lon')
+    if lat is None or lon is None:
+        return jsonify({"ok": False, "error": "Missing coordinates"}), 400
+    
+    username = session.get('username', 'anonymous')
+    # Reverse geocode to city name using a free service
+    city = ""
+    try:
+        geo_resp = httpx.get(
+            f"https://geocode.maps.co/reverse?lat={lat}&lon={lon}",
+            timeout=5,
+        )
+        if geo_resp.status_code == 200:
+            geo_data = geo_resp.json()
+            addr = geo_data.get('address', {})
+            city = addr.get('city') or addr.get('town') or addr.get('village') or addr.get('county', '')
+            state = addr.get('state', '')
+            if city and state:
+                city = f"{city}, {state}"
+    except Exception as e:
+        print(f"Geocode error: {e}")
+    
+    USER_LOCATIONS[username] = {
+        "lat": lat, "lon": lon, "city": city,
+        "updated": time.strftime('%Y-%m-%d %H:%M'),
+    }
+    return jsonify({"ok": True, "city": city})
+
+
+@app.route('/api/ambient')
+@login_required
+def ambient_sounds():
+    """Return available ambient sound URLs."""
+    # Using free ambient sound loops from various CDN sources
+    sounds = {
+        "rain": "https://cdn.pixabay.com/audio/2022/10/30/audio_42a9e1dde0.mp3",
+        "ocean": "https://cdn.pixabay.com/audio/2022/06/07/audio_b9bd4170e4.mp3",
+        "forest": "https://cdn.pixabay.com/audio/2022/02/23/audio_ea70ad13c3.mp3",
+        "fireplace": "https://cdn.pixabay.com/audio/2022/08/02/audio_884fe92c21.mp3",
+        "thunder": "https://cdn.pixabay.com/audio/2022/05/16/audio_2aa736d4b6.mp3",
+        "wind": "https://cdn.pixabay.com/audio/2022/03/09/audio_c610d59c68.mp3",
+        "night": "https://cdn.pixabay.com/audio/2021/08/04/audio_0625c1539c.mp3",
+    }
+    return jsonify(sounds)
 
 
 @app.route('/api/call_phrases')
@@ -916,8 +1244,8 @@ def handle_call_utterance(data):
         # 2. Stream GPT response → TTS each sentence as it completes
         full_text = ""
         for sentence in stream_ai_sentences(sid, user_text):
-            # Skip image generation tags in TTS — don't read them aloud
-            if '[SHOW_IMAGE:' in sentence:
+            # Skip special tags in TTS — don't read them aloud
+            if '[SHOW_IMAGE:' in sentence or '[PLAY_SOUND:' in sentence or '[STOP_SOUND]' in sentence:
                 full_text += (" " if full_text else "") + sentence
                 continue
             full_text += (" " if full_text else "") + sentence
@@ -935,6 +1263,8 @@ def handle_call_utterance(data):
             if img_url:
                 image_urls.append(img_url)
             clean_text = clean_text.replace(match.group(0), '')
+        clean_text = re.sub(r'\[PLAY_SOUND:\s*\w+\]', '', clean_text)
+        clean_text = clean_text.replace('[STOP_SOUND]', '')
         clean_text = clean_text.strip()
 
         if clean_text:
@@ -990,6 +1320,8 @@ def handle_call_image(data):
             if img_url:
                 image_urls.append(img_url)
             clean_text = clean_text.replace(match.group(0), '')
+        clean_text = re.sub(r'\[PLAY_SOUND:\s*\w+\]', '', clean_text)
+        clean_text = clean_text.replace('[STOP_SOUND]', '')
         clean_text = clean_text.strip()
         
         add_message(sid, "assistant", clean_text)
@@ -1012,7 +1344,10 @@ def handle_call_image(data):
 
         # Extract memories
         username = session.get('username', 'anonymous')
-        gevent.spawn(extract_memories_async, username, "[sent a photo]", ai_text)
+        gevent.spawn(extract_memories_async, username, "[sent a photo]", clean_text)
+        gevent.spawn(extract_family_memories_async, username, "[sent a photo]", clean_text)
+        gevent.spawn(extract_homework_async, username, "[sent a photo]", clean_text)
+        gevent.spawn(extract_quiz_results_async, username, "[sent a photo]", clean_text)
 
     except Exception as e:
         print(f"Call image error: {e}")
