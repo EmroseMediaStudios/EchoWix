@@ -306,6 +306,8 @@ def estimate_max_tokens(user_text):
         "summarize", "summary", "overview", "tell me everything",
         "help me with this", "worksheet", "homework", "assignment",
         "write", "draft", "compose", "create",
+        "do you remember", "remember when", "remember that time",
+        "tell me about the time", "what about when",
     ]
     for signal in long_signals:
         if signal in text:
