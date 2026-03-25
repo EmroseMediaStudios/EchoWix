@@ -1,0 +1,85 @@
+{
+  "name": "wickmind",
+  "version": "1.0.0",
+  "description": "WickMind — AI Voice Clone Companion",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build-mac": "electron-builder --mac",
+    "build-win": "electron-builder --win",
+    "build-all": "electron-builder --mac --win"
+  },
+  "build": {
+    "appId": "com.emrose.wickmind",
+    "productName": "WickMind",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "splash.html",
+      "icons/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../",
+        "to": "app",
+        "filter": [
+          "app.py",
+          "config.json",
+          "personality.md",
+          "context.md",
+          "family.md",
+          "requirements.txt",
+          "run.sh",
+          "people/**/*",
+          "static/**/*",
+          "templates/**/*",
+          ".env.example"
+        ]
+      }
+    ],
+    "mac": {
+      "icon": "icons/icon.icns",
+      "category": "public.app-category.lifestyle",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["universal"]
+        }
+      ],
+      "darkModeSupport": true
+    },
+    "win": {
+      "icon": "icons/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "dmg": {
+      "title": "WickMind",
+      "contents": [
+        { "x": 130, "y": 220 },
+        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+      ]
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "dependencies": {
+    "fix-path": "^4.0.0"
+  }
+}
