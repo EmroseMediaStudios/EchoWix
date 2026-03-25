@@ -957,13 +957,13 @@ def stream_ai_sentences(sid, user_text):
     add_message(sid, "user", user_text)
     messages = build_messages(sid)
     
-    call_model = CONFIG.get('call_model', 'gpt-4o-mini')
+    call_model = CONFIG.get('call_model', 'gpt-4o')
     stream = openai.chat.completions.create(
         model=call_model,
         messages=messages,
         stream=True,
         temperature=0.85,
-        max_tokens=200,
+        max_tokens=300,
     )
     
     buffer = ""
