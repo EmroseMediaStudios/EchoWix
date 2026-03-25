@@ -17,6 +17,7 @@ import hashlib
 import tempfile
 import time
 from functools import wraps
+import werkzeug.utils
 from dotenv import load_dotenv
 from flask import Flask, render_template, request, session, jsonify, Response, redirect, url_for
 from flask_socketio import SocketIO, emit
@@ -1200,6 +1201,304 @@ def add_no_cache(response):
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
     return response
+
+
+@app.after_request
+def add_no_cache(response):
+    """Prevent browser caching HTML/JS so updates take effect on reload."""
+    if 'text/html' in response.content_type:
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
+
+# ---- SETTINGS PAGE ----
+
+@app.route('/settings')
+@login_required
+def settings_page():
+    return render_template('settings.html',
+                           app_name=CONFIG.get('name', 'WickMind'),
+                           is_admin=session.get('role') == 'admin')
+
+
+@app.route('/api/settings/family', methods=['GET'])
+@login_required
+def get_family():
+    content = ""
+    if os.path.exists(FAMILY_CONTEXT_FILE):
+        with open(FAMILY_CONTEXT_FILE, 'r') as f:
+            content = f.read()
+    return jsonify({"content": content})
+
+
+@app.route('/api/settings/family', methods=['POST'])
+@login_required
+def save_family():
+    if session.get('role') != 'admin':
+        return jsonify({"ok": False, "error": "Admin only"}), 403
+    data = request.get_json()
+    content = data.get('content', '')
+    try:
+        with open(FAMILY_CONTEXT_FILE, 'w') as f:
+            f.write(content)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/settings/important', methods=['GET'])
+@login_required
+def get_important():
+    content = ""
+    if os.path.exists(IMPORTANT_FILE):
+        with open(IMPORTANT_FILE, 'r') as f:
+            content = f.read()
+    return jsonify({"content": content})
+
+
+@app.route('/api/settings/important', methods=['POST'])
+@login_required
+def save_important():
+    if session.get('role') != 'admin':
+        return jsonify({"ok": False, "error": "Admin only"}), 403
+    data = request.get_json()
+    content = data.get('content', '')
+    try:
+        with open(IMPORTANT_FILE, 'w') as f:
+            f.write(content)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route('/api/settings/photos', methods=['GET'])
+@login_required
+def get_photos():
+    photos = []
+    mem_file = os.path.join(os.path.dirname(__file__), 'memories', 'memories.json')
+    if os.path.exists(mem_file):
+        try:
+            with open(mem_file, 'r') as f:
+                data = json.load(f)
+                photos = data.get('photos', [])
+        except (json.JSONDecodeError, IOError):
+            pass
+    return jsonify({"photos": photos})
+
+
+@app.route('/api/settings/photos/upload', methods=['POST'])
+@login_required
+def upload_photo():
+    if session.get('role') != 'admin':
+        return jsonify({"ok": False, "error": "Admin only"}), 403
+    if 'photo' not in request.files:
+        return jsonify({"ok": False, "error": "No file provided"}), 400
+    
+    photo = request.files['photo']
+    if not photo.filename:
+        return jsonify({"ok": False, "error": "No filename"}), 400
+    
+    # Sanitize filename
+    filename = werkzeug.utils.secure_filename(photo.filename)
+    if not filename:
+        filename = f"photo_{int(time.time())}.jpg"
+    
+    # Ensure unique filename
+    save_path = os.path.join(MEMORIES_PHOTOS_DIR, filename)
+    if os.path.exists(save_path):
+        name, ext = os.path.splitext(filename)
+        filename = f"{name}_{int(time.time())}{ext}"
+        save_path = os.path.join(MEMORIES_PHOTOS_DIR, filename)
+    
+    photo.save(save_path)
+    
+    # Add to memories.json
+    mem_file = os.path.join(os.path.dirname(__file__), 'memories', 'memories.json')
+    data = {"photos": []}
+    if os.path.exists(mem_file):
+        try:
+            with open(mem_file, 'r') as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    
+    photo_entry = {
+        "filename": filename,
+        "description": "",
+        "tags": [],
+        "people": [],
+        "date": "",
+        "story": ""
+    }
+    data.setdefault("photos", []).append(photo_entry)
+    
+    with open(mem_file, 'w') as f:
+        json.dump(data, f, indent=2)
+    
+    return jsonify({"ok": True, "photo": photo_entry})
+
+
+@app.route('/api/settings/photos/meta', methods=['POST'])
+@login_required
+def save_photo_meta():
+    if session.get('role') != 'admin':
+        return jsonify({"ok": False, "error": "Admin only"}), 403
+    req = request.get_json()
+    filename = req.get('filename')
+    if not filename:
+        return jsonify({"ok": False, "error": "No filename"}), 400
+    
+    mem_file = os.path.join(os.path.dirname(__file__), 'memories', 'memories.json')
+    data = {"photos": []}
+    if os.path.exists(mem_file):
+        try:
+            with open(mem_file, 'r') as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    
+    photos = data.get("photos", [])
+    found = False
+    for p in photos:
+        if p.get("filename") == filename:
+            p["description"] = req.get("description", p.get("description", ""))
+            p["date"] = req.get("date", p.get("date", ""))
+            p["people"] = req.get("people", p.get("people", []))
+            p["tags"] = req.get("tags", p.get("tags", []))
+            p["story"] = req.get("story", p.get("story", ""))
+            found = True
+            break
+    
+    if not found:
+        return jsonify({"ok": False, "error": "Photo not found in index"}), 404
+    
+    data["photos"] = photos
+    with open(mem_file, 'w') as f:
+        json.dump(data, f, indent=2)
+    
+    return jsonify({"ok": True})
+
+
+@app.route('/api/settings/photos/delete', methods=['POST'])
+@login_required
+def delete_photo():
+    if session.get('role') != 'admin':
+        return jsonify({"ok": False, "error": "Admin only"}), 403
+    req = request.get_json()
+    filename = req.get('filename')
+    if not filename:
+        return jsonify({"ok": False, "error": "No filename"}), 400
+    
+    # Delete file
+    safe_name = os.path.basename(filename)
+    file_path = os.path.join(MEMORIES_PHOTOS_DIR, safe_name)
+    if os.path.exists(file_path):
+        os.remove(file_path)
+    
+    # Remove from memories.json
+    mem_file = os.path.join(os.path.dirname(__file__), 'memories', 'memories.json')
+    data = {"photos": []}
+    if os.path.exists(mem_file):
+        try:
+            with open(mem_file, 'r') as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    
+    data["photos"] = [p for p in data.get("photos", []) if p.get("filename") != safe_name]
+    with open(mem_file, 'w') as f:
+        json.dump(data, f, indent=2)
+    
+    return jsonify({"ok": True})
+
+
+@app.route('/api/settings/users', methods=['GET'])
+@login_required
+def get_users_list():
+    users = _load_users()
+    user_list = []
+    for uname, udata in users.items():
+        user_list.append({
+            "username": uname,
+            "display_name": udata.get("display_name", uname),
+            "role": udata.get("role", "user")
+        })
+    return jsonify({"users": user_list})
+
+
+@app.route('/api/settings/users/add', methods=['POST'])
+@login_required
+def add_user():
+    # Only admin can manage users
+    if session.get('role') != 'admin':
+        return jsonify({"ok": False, "error": "Admin only"}), 403
+    
+    req = request.get_json()
+    username = req.get('username', '').strip().lower()
+    display_name = req.get('display_name', '').strip()
+    password = req.get('password', '')
+    
+    if not username or not password:
+        return jsonify({"ok": False, "error": "Username and password required"}), 400
+    
+    users = _load_users()
+    if username in users:
+        return jsonify({"ok": False, "error": "Username already exists"}), 400
+    
+    users[username] = {
+        "password": _hash_pw(password),
+        "role": "user",
+        "display_name": display_name or username
+    }
+    _save_users(users)
+    return jsonify({"ok": True})
+
+
+@app.route('/api/settings/users/remove', methods=['POST'])
+@login_required
+def remove_user():
+    if session.get('role') != 'admin':
+        return jsonify({"ok": False, "error": "Admin only"}), 403
+    
+    req = request.get_json()
+    username = req.get('username', '').strip().lower()
+    
+    if not username:
+        return jsonify({"ok": False, "error": "Username required"}), 400
+    if username == 'admin':
+        return jsonify({"ok": False, "error": "Cannot remove admin"}), 400
+    
+    users = _load_users()
+    if username not in users:
+        return jsonify({"ok": False, "error": "User not found"}), 404
+    
+    del users[username]
+    _save_users(users)
+    return jsonify({"ok": True})
+
+
+@app.route('/api/settings/users/password', methods=['POST'])
+@login_required
+def reset_user_password():
+    if session.get('role') != 'admin':
+        return jsonify({"ok": False, "error": "Admin only"}), 403
+    
+    req = request.get_json()
+    username = req.get('username', '').strip().lower()
+    password = req.get('password', '')
+    
+    if not username or not password:
+        return jsonify({"ok": False, "error": "Username and password required"}), 400
+    
+    users = _load_users()
+    if username not in users:
+        return jsonify({"ok": False, "error": "User not found"}), 404
+    
+    users[username]["password"] = _hash_pw(password)
+    _save_users(users)
+    return jsonify({"ok": True})
 
 
 @app.route('/api/chat', methods=['POST'])

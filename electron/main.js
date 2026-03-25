@@ -349,17 +349,10 @@ app.whenReady().then(async () => {
         { label: 'About WickMind', role: 'about' },
         { type: 'separator' },
         {
-          label: 'Edit Family Memories',
-          click: () => shell.openPath(path.join(appDir, 'family.md')),
+          label: 'Settings',
+          click: () => { if (mainWindow) mainWindow.loadURL(`http://127.0.0.1:${PORT}/settings`); },
         },
-        {
-          label: 'Edit Memory Photos',
-          click: () => shell.openPath(path.join(appDir, 'memories')),
-        },
-        {
-          label: 'Edit Important Info',
-          click: () => shell.openPath(path.join(appDir, 'important.md')),
-        },
+        { type: 'separator' },
         {
           label: 'Edit Personality',
           click: () => shell.openPath(path.join(appDir, 'personality.md')),

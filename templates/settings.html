@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_name }} — Settings</title>
+    <link rel="icon" type="image/png" href="/static/img/logo.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        :root{--bg:#06081a;--bg2:#0a0e2a;--bg3:#101540;--glass:rgba(10,14,42,0.85);--glass-border:rgba(59,130,246,0.12);--glass-border2:rgba(99,102,241,0.15);--border:#161b3d;--text1:#e2e8f0;--text2:#94a3b8;--text3:#475569;--blue:#3b82f6;--blue-light:#60a5fa;--blue-glow:rgba(59,130,246,0.3);--orange:#f97316;--orange-light:#fb923c;--orange-glow:rgba(249,115,22,0.3);--red:#ef4444;--green:#22c55e}
+        body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--text1);min-height:100vh;overflow-y:auto}
+        body::before{content:'';position:fixed;top:-30%;left:40%;width:80%;height:60%;background:radial-gradient(ellipse,rgba(59,130,246,0.07) 0%,transparent 65%);pointer-events:none}
+        body::after{content:'';position:fixed;bottom:-20%;right:30%;width:70%;height:50%;background:radial-gradient(ellipse,rgba(249,115,22,0.05) 0%,transparent 65%);pointer-events:none}
+
+        .settings-wrap{position:relative;z-index:1;max-width:800px;margin:0 auto;padding:24px 20px 60px}
+
+        /* Top bar */
+        .top-bar{display:flex;align-items:center;gap:14px;margin-bottom:32px}
+        .back-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;background:rgba(255,255,255,0.04);border:1px solid var(--glass-border);border-radius:10px;color:var(--text2);font-size:0.85rem;cursor:pointer;text-decoration:none;font-family:inherit;transition:all 0.2s}
+        .back-btn:hover{background:rgba(59,130,246,0.1);color:var(--text1);border-color:rgba(59,130,246,0.25)}
+        .top-bar h1{font-size:1.5rem;font-weight:600;color:var(--text1)}
+
+        /* Tabs */
+        .tabs{display:flex;gap:4px;background:rgba(255,255,255,0.03);border:1px solid var(--glass-border);border-radius:12px;padding:4px;margin-bottom:28px}
+        .tab{flex:1;padding:10px 16px;background:transparent;border:none;border-radius:9px;color:var(--text3);font-family:inherit;font-size:0.85rem;font-weight:500;cursor:pointer;transition:all 0.2s;text-align:center}
+        .tab:hover{color:var(--text2);background:rgba(255,255,255,0.03)}
+        .tab.active{background:rgba(59,130,246,0.12);color:var(--blue-light);box-shadow:0 0 20px rgba(59,130,246,0.1)}
+
+        /* Sections */
+        .section{display:none}
+        .section.active{display:block}
+
+        /* Cards */
+        .card{background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;padding:24px;margin-bottom:20px;backdrop-filter:blur(12px)}
+        .card h2{font-size:1.1rem;font-weight:600;color:var(--text1);margin-bottom:4px}
+        .card .subtitle{font-size:0.78rem;color:var(--text3);margin-bottom:18px;line-height:1.5}
+
+        /* Form elements */
+        .field{margin-bottom:16px}
+        .field label{display:block;font-size:0.78rem;font-weight:500;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px}
+        .field input,.field textarea{width:100%;padding:10px 14px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:9px;color:var(--text1);font-family:inherit;font-size:0.88rem;transition:border-color 0.2s;resize:vertical}
+        .field input:focus,.field textarea:focus{outline:none;border-color:rgba(59,130,246,0.4);box-shadow:0 0 0 3px rgba(59,130,246,0.08)}
+        .field textarea{min-height:100px;line-height:1.6}
+        .field .hint{font-size:0.72rem;color:var(--text3);margin-top:4px}
+
+        /* Markdown editor area */
+        .md-editor{width:100%;min-height:300px;padding:14px 16px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:9px;color:var(--text1);font-family:'SF Mono',Menlo,monospace;font-size:0.82rem;line-height:1.7;resize:vertical;transition:border-color 0.2s}
+        .md-editor:focus{outline:none;border-color:rgba(59,130,246,0.4);box-shadow:0 0 0 3px rgba(59,130,246,0.08)}
+
+        /* Buttons */
+        .btn{padding:10px 20px;border:none;border-radius:9px;font-family:inherit;font-size:0.85rem;font-weight:500;cursor:pointer;transition:all 0.2s}
+        .btn-primary{background:var(--blue);color:white}
+        .btn-primary:hover{background:var(--blue-light);box-shadow:0 0 20px var(--blue-glow)}
+        .btn-secondary{background:rgba(255,255,255,0.05);color:var(--text2);border:1px solid var(--glass-border)}
+        .btn-secondary:hover{background:rgba(255,255,255,0.08);color:var(--text1)}
+        .btn-danger{background:rgba(239,68,68,0.12);color:var(--red);border:1px solid rgba(239,68,68,0.2)}
+        .btn-danger:hover{background:rgba(239,68,68,0.2)}
+        .btn-row{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+        .btn:disabled{opacity:0.5;cursor:not-allowed}
+
+        /* Save feedback */
+        .save-msg{display:inline-block;margin-left:12px;font-size:0.82rem;color:var(--green);opacity:0;transition:opacity 0.3s}
+        .save-msg.show{opacity:1}
+
+        /* Photo grid */
+        .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px;margin-top:16px}
+        .photo-card{position:relative;border-radius:10px;overflow:hidden;background:rgba(0,0,0,0.3);border:1px solid var(--border);aspect-ratio:1;cursor:pointer;transition:all 0.25s}
+        .photo-card:hover{border-color:rgba(59,130,246,0.3);transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,0.4)}
+        .photo-card img{width:100%;height:100%;object-fit:cover}
+        .photo-card .photo-overlay{position:absolute;bottom:0;left:0;right:0;padding:8px;background:linear-gradient(transparent,rgba(0,0,0,0.85));font-size:0.72rem;color:var(--text2);line-height:1.3}
+        .photo-card .photo-delete{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,0.7);border:1px solid rgba(239,68,68,0.3);color:var(--red);font-size:0.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s}
+        .photo-card:hover .photo-delete{opacity:1}
+
+        /* Upload area */
+        .upload-zone{border:2px dashed var(--border);border-radius:12px;padding:32px;text-align:center;cursor:pointer;transition:all 0.2s;margin-top:16px}
+        .upload-zone:hover,.upload-zone.drag{border-color:rgba(59,130,246,0.4);background:rgba(59,130,246,0.04)}
+        .upload-zone .uz-icon{font-size:2rem;margin-bottom:8px;opacity:0.5}
+        .upload-zone .uz-text{font-size:0.85rem;color:var(--text2)}
+        .upload-zone .uz-hint{font-size:0.72rem;color:var(--text3);margin-top:4px}
+        .upload-zone input{display:none}
+
+        /* Photo edit modal */
+        .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);z-index:100;align-items:center;justify-content:center}
+        .modal-bg.show{display:flex}
+        .modal{background:var(--bg2);border:1px solid var(--glass-border);border-radius:16px;padding:28px;max-width:500px;width:90%;max-height:85vh;overflow-y:auto}
+        .modal h3{font-size:1.05rem;font-weight:600;margin-bottom:16px}
+        .modal img{width:100%;border-radius:8px;margin-bottom:16px;max-height:200px;object-fit:contain;background:rgba(0,0,0,0.3)}
+
+        /* Users list */
+        .user-row{display:flex;align-items:center;gap:14px;padding:14px;background:rgba(0,0,0,0.15);border:1px solid var(--border);border-radius:10px;margin-bottom:10px}
+        .user-row .user-avatar{width:36px;height:36px;border-radius:50%;background:rgba(59,130,246,0.15);display:flex;align-items:center;justify-content:center;font-size:0.85rem;color:var(--blue-light);font-weight:600}
+        .user-row .user-info{flex:1}
+        .user-row .user-name{font-size:0.9rem;font-weight:500}
+        .user-row .user-role{font-size:0.72rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px}
+        .user-row .user-actions{display:flex;gap:6px}
+        .user-row .user-actions button{padding:5px 10px;font-size:0.72rem}
+
+        /* Toast */
+        .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(60px);background:var(--bg3);border:1px solid var(--glass-border2);border-radius:10px;padding:10px 20px;font-size:0.85rem;color:var(--text1);z-index:200;opacity:0;transition:all 0.3s;pointer-events:none}
+        .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+        .toast.error{border-color:rgba(239,68,68,0.3);color:var(--red)}
+        .toast.success{border-color:rgba(34,197,94,0.3);color:var(--green)}
+    </style>
+</head>
+<body>
+    <div class="settings-wrap">
+        <div class="top-bar">
+            <a href="/" class="back-btn">← Back to Chat</a>
+            <h1>Settings</h1>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('family')">Family Info</button>
+            <button class="tab" onclick="showTab('important')">Important Things</button>
+            <button class="tab" onclick="showTab('photos')">Memory Photos</button>
+            {% if is_admin %}<button class="tab" onclick="showTab('users')">Family Members</button>{% endif %}
+        </div>
+
+        <!-- FAMILY INFO -->
+        <div class="section active" id="sec-family">
+            <div class="card">
+                <h2>Family Memories & Info</h2>
+                <p class="subtitle">Things Steve knows about your family — birthdays, stories, inside jokes, favorite things, important dates. The more you add, the more personal Steve becomes.</p>
+                <textarea class="md-editor" id="familyEditor" placeholder="Loading..."></textarea>
+                <div class="btn-row">
+                    <button class="btn btn-primary" onclick="saveFamily()">Save Changes</button>
+                    <span class="save-msg" id="familySaved">✓ Saved</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- IMPORTANT THINGS -->
+        <div class="section" id="sec-important">
+            <div class="card">
+                <h2>Important Things</h2>
+                <p class="subtitle">Passwords, insurance info, contacts, where to find things, how to pay bills. Steve can answer questions like "What's the WiFi password?" or "What's our insurance company?" if you fill this in.</p>
+                <textarea class="md-editor" id="importantEditor" placeholder="Loading..." style="min-height:400px"></textarea>
+                <div class="btn-row">
+                    <button class="btn btn-primary" onclick="saveImportant()">Save Changes</button>
+                    <span class="save-msg" id="importantSaved">✓ Saved</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- MEMORY PHOTOS -->
+        <div class="section" id="sec-photos">
+            <div class="card">
+                <h2>Memory Photos</h2>
+                <p class="subtitle">Upload real family photos that Steve can show during conversations. Tag them with names, places, and events so Steve knows when to pull them up. "Show me a picture from our vacation" will just work.</p>
+                <div class="photo-grid" id="photoGrid"></div>
+                <div class="upload-zone" id="uploadZone">
+                    <div class="uz-icon">📷</div>
+                    <div class="uz-text">Drop photos here or click to upload</div>
+                    <div class="uz-hint">JPG or PNG — any size works</div>
+                    <input type="file" id="photoInput" accept="image/*" multiple>
+                </div>
+            </div>
+        </div>
+
+        <!-- FAMILY MEMBERS -->
+        <div class="section" id="sec-users">
+            <div class="card">
+                <h2>Family Members</h2>
+                <p class="subtitle">People who can talk to Steve. Each person gets their own login, conversation history, and memories.</p>
+                <div id="usersList"></div>
+                <div style="margin-top:16px">
+                    <h3 style="font-size:0.9rem;font-weight:500;margin-bottom:12px;color:var(--text2)">Add someone new</h3>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                        <div class="field" style="margin:0"><label>Display Name</label><input id="newName" placeholder="Emma"></div>
+                        <div class="field" style="margin:0"><label>Username</label><input id="newUser" placeholder="emma"></div>
+                        <div class="field" style="margin:0"><label>Password</label><input id="newPass" type="password" placeholder="Something memorable"></div>
+                        <div style="display:flex;align-items:flex-end"><button class="btn btn-primary" onclick="addUser()" style="width:100%">Add</button></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Photo edit modal -->
+    <div class="modal-bg" id="photoModal">
+        <div class="modal">
+            <h3 id="modalTitle">Edit Photo</h3>
+            <img id="modalImg" src="">
+            <div class="field"><label>Description</label><input id="modalDesc" placeholder="Our wedding day at the beach"></div>
+            <div class="field"><label>Date</label><input id="modalDate" placeholder="June 15, 2012"></div>
+            <div class="field"><label>People</label><input id="modalPeople" placeholder="Steve, Kim, Emma, Drew"></div>
+            <div class="field"><label>Tags</label><input id="modalTags" placeholder="wedding, beach, family, summer"><div class="hint">Comma-separated. Steve searches these to find the right photo.</div></div>
+            <div class="field"><label>Story</label><textarea id="modalStory" placeholder="Tell Steve the story behind this photo — he'll share it when showing the picture." style="min-height:80px"></textarea></div>
+            <input type="hidden" id="modalFilename">
+            <div class="btn-row">
+                <button class="btn btn-primary" onclick="savePhotoMeta()">Save</button>
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-danger" onclick="deletePhoto()" style="margin-left:auto">Delete Photo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+    const isAdmin = {{ 'true' if is_admin else 'false' }};
+    
+    // --- Tab switching ---
+    function showTab(name){
+        const tabNames = isAdmin ? ['family','important','photos','users'] : ['family','important','photos'];
+        document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',tabNames[i]===name));
+        document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+        document.getElementById('sec-'+name).classList.add('active');
+        // Lazy-load data
+        if(name==='family'&&!familyLoaded)loadFamily();
+        if(name==='important'&&!importantLoaded)loadImportant();
+        if(name==='photos'&&!photosLoaded)loadPhotos();
+        if(name==='users'&&!usersLoaded)loadUsers();
+    }
+
+    // --- Toast ---
+    let toastTimer;
+    function toast(msg,type='success'){
+        const t=document.getElementById('toast');
+        t.textContent=msg;t.className='toast '+type+' show';
+        clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),3000);
+    }
+
+    // --- Family Info ---
+    let familyLoaded=false;
+    function loadFamily(){
+        fetch('/api/settings/family').then(r=>r.json()).then(d=>{
+            document.getElementById('familyEditor').value=d.content||'';
+            familyLoaded=true;
+        });
+    }
+    function saveFamily(){
+        const content=document.getElementById('familyEditor').value;
+        fetch('/api/settings/family',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content})})
+        .then(r=>r.json()).then(d=>{
+            if(d.ok){const m=document.getElementById('familySaved');m.classList.add('show');setTimeout(()=>m.classList.remove('show'),2000);toast('Family info saved');}
+            else toast(d.error||'Save failed','error');
+        });
+    }
+    loadFamily(); // Auto-load first tab
+
+    // --- Important Things ---
+    let importantLoaded=false;
+    function loadImportant(){
+        fetch('/api/settings/important').then(r=>r.json()).then(d=>{
+            document.getElementById('importantEditor').value=d.content||'';
+            importantLoaded=true;
+        });
+    }
+    function saveImportant(){
+        const content=document.getElementById('importantEditor').value;
+        fetch('/api/settings/important',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content})})
+        .then(r=>r.json()).then(d=>{
+            if(d.ok){const m=document.getElementById('importantSaved');m.classList.add('show');setTimeout(()=>m.classList.remove('show'),2000);toast('Important things saved');}
+            else toast(d.error||'Save failed','error');
+        });
+    }
+
+    // --- Memory Photos ---
+    let photosLoaded=false;
+    let photosData=[];
+    function loadPhotos(){
+        fetch('/api/settings/photos').then(r=>r.json()).then(d=>{
+            photosData=d.photos||[];
+            renderPhotos();
+            photosLoaded=true;
+        });
+    }
+    function renderPhotos(){
+        const grid=document.getElementById('photoGrid');
+        if(!photosData.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text3);font-size:0.85rem">No photos yet. Upload some memories below.</div>';return;}
+        grid.innerHTML=photosData.map(p=>`
+            <div class="photo-card" onclick="editPhoto('${esc(p.filename)}')">
+                <img src="/api/memory_photo/${esc(p.filename)}" alt="${esc(p.description||'')}">
+                <div class="photo-overlay">${esc(p.description||p.filename)}</div>
+                <button class="photo-delete" onclick="event.stopPropagation();confirmDeletePhoto('${esc(p.filename)}')">✕</button>
+            </div>
+        `).join('');
+    }
+    function esc(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'):''}
+
+    // Upload
+    const uploadZone=document.getElementById('uploadZone');
+    const photoInput=document.getElementById('photoInput');
+    uploadZone.addEventListener('click',()=>photoInput.click());
+    uploadZone.addEventListener('dragover',e=>{e.preventDefault();uploadZone.classList.add('drag')});
+    uploadZone.addEventListener('dragleave',()=>uploadZone.classList.remove('drag'));
+    uploadZone.addEventListener('drop',e=>{e.preventDefault();uploadZone.classList.remove('drag');handleFiles(e.dataTransfer.files)});
+    photoInput.addEventListener('change',e=>handleFiles(e.target.files));
+    function handleFiles(files){
+        Array.from(files).forEach(f=>{
+            if(!f.type.startsWith('image/'))return;
+            const fd=new FormData();
+            fd.append('photo',f);
+            fetch('/api/settings/photos/upload',{method:'POST',body:fd})
+            .then(r=>r.json()).then(d=>{
+                if(d.ok){
+                    photosData.push(d.photo);
+                    renderPhotos();
+                    toast('Photo uploaded');
+                    // Open edit modal for the new photo
+                    editPhoto(d.photo.filename);
+                }else toast(d.error||'Upload failed','error');
+            });
+        });
+    }
+
+    // Edit photo modal
+    function editPhoto(filename){
+        const p=photosData.find(x=>x.filename===filename);
+        if(!p)return;
+        document.getElementById('modalImg').src='/api/memory_photo/'+encodeURIComponent(filename);
+        document.getElementById('modalTitle').textContent=p.description||filename;
+        document.getElementById('modalDesc').value=p.description||'';
+        document.getElementById('modalDate').value=p.date||'';
+        document.getElementById('modalPeople').value=(p.people||[]).join(', ');
+        document.getElementById('modalTags').value=(p.tags||[]).join(', ');
+        document.getElementById('modalStory').value=p.story||'';
+        document.getElementById('modalFilename').value=filename;
+        document.getElementById('photoModal').classList.add('show');
+    }
+    function closeModal(){document.getElementById('photoModal').classList.remove('show');}
+    document.getElementById('photoModal').addEventListener('click',e=>{if(e.target.classList.contains('modal-bg'))closeModal()});
+
+    function savePhotoMeta(){
+        const filename=document.getElementById('modalFilename').value;
+        const meta={
+            filename:filename,
+            description:document.getElementById('modalDesc').value,
+            date:document.getElementById('modalDate').value,
+            people:document.getElementById('modalPeople').value.split(',').map(s=>s.trim()).filter(Boolean),
+            tags:document.getElementById('modalTags').value.split(',').map(s=>s.trim()).filter(Boolean),
+            story:document.getElementById('modalStory').value
+        };
+        fetch('/api/settings/photos/meta',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(meta)})
+        .then(r=>r.json()).then(d=>{
+            if(d.ok){
+                const idx=photosData.findIndex(x=>x.filename===filename);
+                if(idx>=0)photosData[idx]={...photosData[idx],...meta};
+                renderPhotos();closeModal();toast('Photo details saved');
+            }else toast(d.error||'Save failed','error');
+        });
+    }
+    function confirmDeletePhoto(filename){
+        if(!confirm('Delete this photo? This cannot be undone.'))return;
+        deletePhotoByName(filename);
+    }
+    function deletePhoto(){
+        const filename=document.getElementById('modalFilename').value;
+        if(!confirm('Delete this photo? This cannot be undone.'))return;
+        deletePhotoByName(filename);
+        closeModal();
+    }
+    function deletePhotoByName(filename){
+        fetch('/api/settings/photos/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename})})
+        .then(r=>r.json()).then(d=>{
+            if(d.ok){
+                photosData=photosData.filter(x=>x.filename!==filename);
+                renderPhotos();toast('Photo deleted');
+            }else toast(d.error||'Delete failed','error');
+        });
+    }
+
+    // --- Users ---
+    let usersLoaded=false;
+    function loadUsers(){
+        fetch('/api/settings/users').then(r=>r.json()).then(d=>{
+            renderUsers(d.users||[]);
+            usersLoaded=true;
+        });
+    }
+    function renderUsers(users){
+        const el=document.getElementById('usersList');
+        el.innerHTML=users.map(u=>`
+            <div class="user-row">
+                <div class="user-avatar">${esc(u.display_name||u.username).charAt(0).toUpperCase()}</div>
+                <div class="user-info">
+                    <div class="user-name">${esc(u.display_name||u.username)}</div>
+                    <div class="user-role">${esc(u.role)} · ${esc(u.username)}</div>
+                </div>
+                <div class="user-actions">
+                    <button class="btn btn-secondary" onclick="resetPassword('${esc(u.username)}')">Reset Password</button>
+                    ${u.role!=='admin'?`<button class="btn btn-danger" onclick="removeUser('${esc(u.username)}')">Remove</button>`:''}
+                </div>
+            </div>
+        `).join('');
+    }
+    function addUser(){
+        const display_name=document.getElementById('newName').value.trim();
+        const username=document.getElementById('newUser').value.trim().toLowerCase();
+        const password=document.getElementById('newPass').value;
+        if(!display_name||!username||!password){toast('Fill in all fields','error');return;}
+        fetch('/api/settings/users/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,display_name,password})})
+        .then(r=>r.json()).then(d=>{
+            if(d.ok){loadUsers();document.getElementById('newName').value='';document.getElementById('newUser').value='';document.getElementById('newPass').value='';toast(display_name+' added');}
+            else toast(d.error||'Failed','error');
+        });
+    }
+    function removeUser(username){
+        if(!confirm('Remove '+username+'? Their conversations will be kept.'))return;
+        fetch('/api/settings/users/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username})})
+        .then(r=>r.json()).then(d=>{if(d.ok){loadUsers();toast('Removed');}else toast(d.error||'Failed','error');});
+    }
+    function resetPassword(username){
+        const pw=prompt('New password for '+username+':');
+        if(!pw)return;
+        fetch('/api/settings/users/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password:pw})})
+        .then(r=>r.json()).then(d=>{if(d.ok)toast('Password updated');else toast(d.error||'Failed','error');});
+    }
+    </script>
+</body>
+</html>
