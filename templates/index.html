@@ -340,20 +340,8 @@ function stopPlayback(){
     socket.emit('call_interrupt');
 }
 function startInterruptMonitor(){
-    if(interruptMon)return;interruptMon=true;
-    const data=new Float32Array(analyser.fftSize);let hitCount=0;
-    function chk(){
-        if(!interruptMon||!inCall||!analyser)return;
-        if(aPlaying||aQueue.length>0){
-            analyser.getFloatTimeDomainData(data);
-            let sum=0;for(let i=0;i<data.length;i++)sum+=data[i]*data[i];
-            const rms=Math.sqrt(sum/data.length);
-            if(rms>INTERRUPT_THRESH){hitCount++;if(hitCount>3){hitCount=0;stopPlayback();setCallSt('listening');startListen();}}
-            else{hitCount=Math.max(0,hitCount-1);}
-        }else{hitCount=0;}
-        requestAnimationFrame(chk);
-    }
-    requestAnimationFrame(chk);
+    // Disabled — too sensitive, picks up keystrokes and ambient noise
+    return;
 }
 function stopInterruptMonitor(){interruptMon=false;}
 function saveConversation(){
