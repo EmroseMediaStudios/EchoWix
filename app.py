@@ -670,6 +670,19 @@ def _strip_latex(text):
     text = re.sub(r'^\s*[-•]\s+', '', text, flags=re.MULTILINE)
     # Reduce excessive exclamation marks
     text = re.sub(r'!{2,}', '!', text)  # !! or !!! → !
+    # Limit to max 2 exclamation marks per response — replace extras with periods
+    exc_count = 0
+    result = []
+    for char in text:
+        if char == '!':
+            exc_count += 1
+            if exc_count <= 2:
+                result.append(char)
+            else:
+                result.append('.')
+        else:
+            result.append(char)
+    text = ''.join(result)
     return text
 
 
@@ -983,25 +996,24 @@ def stream_ai_sentences(sid, user_text):
     for chunk in stream:
         delta = chunk.choices[0].delta if chunk.choices else None
         if delta and delta.content:
-            cleaned = _strip_latex(delta.content)
-            buffer += cleaned
-            full += cleaned
+            buffer += delta.content
+            full += delta.content
             # Check if we have a complete sentence
             while True:
                 match = re.search(r'[.!?]+\s*', buffer)
                 if match and match.end() < len(buffer):
-                    sentence = buffer[:match.end()].strip()
+                    sentence = _strip_latex(buffer[:match.end()])
                     buffer = buffer[match.end():]
-                    if sentence:
-                        yield sentence
+                    if sentence.strip():
+                        yield sentence.strip()
                 else:
                     break
     
     # Yield remaining text
     if buffer.strip():
-        yield buffer.strip()
+        yield _strip_latex(buffer).strip()
     
-    add_message(sid, "assistant", full)
+    add_message(sid, "assistant", _strip_latex(full))
     # Extract memories in background
     username = session.get('username', 'anonymous')
     gevent.spawn(extract_memories_async, username, user_text, full)
@@ -1240,28 +1252,45 @@ def chat():
                 temperature=0.85,
                 max_tokens=max_tok,
             )
+            raw_full = ""
             for chunk in stream:
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if delta and delta.content:
-                    chunk_text = _strip_latex(delta.content)
-                    full += chunk_text
-                    yield f"data: {json.dumps({'text': chunk_text})}\n\n"
-                    # Start DALL-E image generation as soon as we detect complete tags mid-stream
-                    for tag_match in re.finditer(r'\[SHOW_IMAGE:\s*(.+?)\]', full):
+                    raw_full += delta.content
+                    # Buffer and emit cleaned text in sentence-sized chunks
+                    # Look for sentence boundaries to apply _strip_latex on complete phrases
+                    while True:
+                        boundary = re.search(r'[.!?,:;]\s', raw_full[len(full):] if len(full) < len(raw_full) else '')
+                        if boundary:
+                            end_pos = len(full) + boundary.end()
+                            new_chunk = raw_full[len(full):end_pos]
+                            cleaned = _strip_latex(new_chunk)
+                            full += new_chunk
+                            yield f"data: {json.dumps({'text': cleaned})}\n\n"
+                        else:
+                            break
+                    # Start DALL-E image generation as soon as we detect complete tags
+                    for tag_match in re.finditer(r'\[SHOW_IMAGE:\s*(.+?)\]', raw_full):
                         if tag_match.group(0) not in _started_imgs:
                             _started_imgs.add(tag_match.group(0))
                             _img_futures.append(gevent.spawn(generate_explanation_image, tag_match.group(1).strip()))
                     # Send memory photos IMMEDIATELY (they're local, no delay)
-                    for tag_match in re.finditer(r'\[SHOW_MEMORY:\s*(.+?)\]', full):
+                    for tag_match in re.finditer(r'\[SHOW_MEMORY:\s*(.+?)\]', raw_full):
                         if tag_match.group(0) not in _started_imgs:
                             _started_imgs.add(tag_match.group(0))
                             mem_file = tag_match.group(1).strip()
                             mem_path = os.path.join(MEMORIES_PHOTOS_DIR, os.path.basename(mem_file))
                             if os.path.exists(mem_path):
                                 yield f"data: {json.dumps({'images': [f'/api/memory_photo/{os.path.basename(mem_file)}']})}\n\n"
+            # Flush remaining text
+            if len(full) < len(raw_full):
+                remaining = _strip_latex(raw_full[len(full):])
+                if remaining:
+                    yield f"data: {json.dumps({'text': remaining})}\n\n"
+                full = raw_full
             # Collect any DALL-E image results (started during streaming, should be mostly done)
             image_urls = [f.value for f in gevent.joinall(_img_futures, timeout=20) if f.value]
-            clean_text = full
+            clean_text = _strip_latex(raw_full)
             # Strip all special tags (memory photos already sent)
             for match in re.finditer(r'\[SHOW_MEMORY:\s*(.+?)\]', full):
                 clean_text = clean_text.replace(match.group(0), '')
@@ -1527,7 +1556,7 @@ def handle_call_utterance(data):
                 emit('call_audio', {'data': b64})
 
         # Build clean text for transcript
-        clean_text = full_text
+        clean_text = _strip_latex(full_text)
         for match in re.finditer(r'\[SHOW_IMAGE:\s*(.+?)\]', full_text):
             clean_text = clean_text.replace(match.group(0), '')
         for match in re.finditer(r'\[SHOW_MEMORY:\s*(.+?)\]', full_text):
@@ -1598,7 +1627,7 @@ def handle_call_image(data):
         
         # Check for image generation tags
         image_urls = []
-        clean_text = ai_text
+        clean_text = _strip_latex(ai_text)
         for match in re.finditer(r'\[SHOW_IMAGE:\s*(.+?)\]', ai_text):
             img_prompt = match.group(1).strip()
             img_url = generate_explanation_image(img_prompt)
