@@ -27,7 +27,8 @@
         .header-info .sub{font-size:1.06rem;font-weight:700;color:var(--text3);display:flex;align-items:center;gap:5px;margin-top:2px}
         .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px rgba(34,197,94,0.5)}
         .header-right{display:flex;gap:6px;align-items:center}
-        .hdr-btn{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,0.06);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;transition:all 0.2s;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,0.03);color:var(--text2)}
+        .hdr-btn{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,0.06);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;transition:all 0.2s;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,0.03)}
+        .hdr-btn img{width:100%;height:100%;object-fit:cover;border-radius:50%}
         .hdr-btn:hover{background:rgba(255,255,255,0.08);transform:scale(1.05);border-color:rgba(255,255,255,0.1)}
         .hdr-btn img{width:70px;height:70px;object-fit:cover;border-radius:50%}
         .hdr-btn-call{width:70px;height:70px}
@@ -65,9 +66,9 @@
         .img-preview img{max-height:100px;border-radius:8px;border:1px solid var(--border);cursor:pointer;transition:transform 0.2s}
         .img-preview img:hover{transform:scale(1.05)}
         .img-preview .remove-img{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--red);color:#fff;border:none;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;line-height:1}
-        .send-btn{width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,0.06);background:linear-gradient(135deg,var(--blue),var(--orange));cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;overflow:hidden;color:#fff}
-        .send-btn:hover{transform:scale(1.05);box-shadow:0 0 15px var(--blue-glow)}
-        .send-btn svg{width:20px;height:20px}
+        .send-btn{width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;overflow:hidden}
+        .send-btn:hover{transform:scale(1.05);box-shadow:0 0 15px rgba(249,115,22,0.3)}
+        .send-btn img{width:100%;height:100%;object-fit:cover;border-radius:50%}
         .call-overlay{display:none;position:absolute;inset:0;z-index:20;background:rgba(6,8,26,0.94);backdrop-filter:blur(24px);flex-direction:column;align-items:center;justify-content:center;gap:20px}
         .call-overlay.active{display:flex}
         .call-avatar{width:110px;height:110px;border-radius:50%;object-fit:cover;border:2px solid var(--blue);box-shadow:0 0 40px var(--blue-glow)}
@@ -82,7 +83,9 @@
         @keyframes cp{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
         .call-transcript{max-width:80%;text-align:center;font-size:0.82rem;color:var(--text2);min-height:2.5em;line-height:1.5}
         .call-transcript .at{color:var(--orange-light)}
-        .call-hangup{width:84px;height:84px;border-radius:50%;border:none;background:linear-gradient(135deg,var(--red),#dc2626);color:#fff;cursor:pointer;transition:all .2s;box-shadow:0 0 30px rgba(239,68,68,0.3);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:30px}
+        .call-hangup{width:84px;height:84px;border-radius:50%;border:none;background:transparent;cursor:pointer;transition:all .2s;box-shadow:0 0 30px rgba(239,68,68,0.3);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:30px}
+        .call-hangup:hover{transform:scale(1.1);box-shadow:0 0 40px rgba(239,68,68,0.5)}
+        .call-hangup img{width:84px;height:84px;object-fit:cover;border-radius:50%}
         .call-hangup:hover{transform:scale(1.1);box-shadow:0 0 40px rgba(239,68,68,0.5)}
         .call-hangup img{width:84px;height:84px;object-fit:cover;border-radius:50%}
         .call-upload-btn{width:64px;height:64px;border-radius:50%;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;font-size:1.5rem;color:var(--text2)}
@@ -116,8 +119,8 @@
                 <div class="header-info"><div class="title">{{ app_name }}</div><div class="sub"><span class="dot"></span>{{ avatar_name }} · Online</div></div>
             </div>
             <div class="header-right">
-                <button class="hdr-btn hdr-btn-call" id="callBtn" onclick="toggleCall()" title="Call"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg></button>
-                <button class="hdr-btn" onclick="toggleMenu()" title="Menu"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                <button class="hdr-btn hdr-btn-call" id="callBtn" onclick="toggleCall()" title="Call"><img src="/static/img/icon-call.png" onerror="this.style.display='none';this.parentElement.innerHTML='📞'"></button>
+                <button class="hdr-btn" onclick="toggleMenu()" title="Menu"><img src="/static/img/icon-menu.png" onerror="this.style.display='none';this.parentElement.innerHTML='⋮'"></button>
             </div>
             <div class="clear-menu" id="clearMenu">
                 <button onclick="clearConversation();toggleMenu();">🗑 Clear conversation</button>
@@ -130,7 +133,7 @@
             <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="previewImage(this)">
             <button class="attach-btn" onclick="document.getElementById('imageInput').click()" title="Attach image">📎</button>
             <input type="text" class="text-input" id="textInput" placeholder="Message {{ avatar_name }}..." autocomplete="off">
-            <button class="send-btn" onclick="sendMessage()" title="Send"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+            <button class="send-btn" onclick="sendMessage()" title="Send"><img src="/static/img/icon-send.png" onerror="this.style.display='none';this.parentElement.innerHTML='➤'"></button>
         </div>
         <div class="call-overlay" id="callOverlay">
             <div class="caw" id="caw">
@@ -146,7 +149,7 @@
             <div style="display:flex;gap:16px;align-items:center;">
               <input type="file" id="callImageInput" accept="image/*" style="display:none" onchange="sendCallImage(this)">
               <button class="call-upload-btn" onclick="document.getElementById('callImageInput').click()" title="Send a photo">📎</button>
-              <button class="call-hangup" onclick="endCall()"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.956.956 0 010-1.36C3.15 8.98 7.33 7 12 7s8.85 1.98 11.71 4.72c.18.18.29.44.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.1-.7-.28-.79-.73-1.68-1.36-2.66-1.85a.993.993 0 01-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg></button>
+              <button class="call-hangup" onclick="endCall()"><img src="/static/img/icon-hangup.png" onerror="this.style.display='none';this.parentElement.innerHTML='📞'"></button>
             </div>
         </div>
     </div>

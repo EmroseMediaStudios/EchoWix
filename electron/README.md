@@ -15,6 +15,14 @@ The user only needs: **API keys** (OpenAI + ElevenLabs)
 ```bash
 cd electron/
 
+# First, create bundled.env with your API keys (not in git):
+cat > bundled.env << 'EOF'
+OPENAI_API_KEY=sk-proj-your-key-here
+ELEVENLABS_API_KEY=sk_your-key-here
+BRAVE_API_KEY=
+SECRET_KEY=wickmind-prod-7751
+EOF
+
 # One command does everything:
 ./build.sh mac       # → WickMind.dmg
 ./build.sh win       # → WickMind Setup.exe

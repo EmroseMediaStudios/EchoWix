@@ -60,3 +60,4 @@ electron/node_modules/
 electron/dist/
 electron/python-mac/
 electron/python-win/
+electron/bundled.env

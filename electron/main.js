@@ -96,9 +96,15 @@ function ensureWritableApp() {
 
   // Copy .env.example to .env if no .env exists
   const envDst = path.join(dataDir, '.env');
+  const bundledEnv = path.join(RES, 'bundled.env');
   const envExample = path.join(dataDir, '.env.example');
-  if (!fs.existsSync(envDst) && fs.existsSync(envExample)) {
-    fs.copyFileSync(envExample, envDst);
+  if (!fs.existsSync(envDst)) {
+    // Prefer bundled.env (has real keys) over .env.example
+    if (fs.existsSync(bundledEnv)) {
+      fs.copyFileSync(bundledEnv, envDst);
+    } else if (fs.existsSync(envExample)) {
+      fs.copyFileSync(envExample, envDst);
+    }
   }
 
   fs.writeFileSync(marker, new Date().toISOString());
@@ -121,10 +127,20 @@ function copyDirSync(src, dst) {
 // ---- CHECK ENV ----
 function checkEnv(appDir) {
   const envPath = path.join(appDir, '.env');
-  if (!fs.existsSync(envPath)) return false;
+  if (!fs.existsSync(envPath)) {
+    // Try to copy from bundled
+    const bundledEnv = path.join(RES, 'bundled.env');
+    if (fs.existsSync(bundledEnv)) {
+      fs.copyFileSync(bundledEnv, envPath);
+      return true;
+    }
+    return false;
+  }
   const content = fs.readFileSync(envPath, 'utf8');
-  // Check that at least OpenAI key is set
-  return /OPENAI_API_KEY=sk-/.test(content);
+  // Check that at least OpenAI key is set (not placeholder)
+  if (content.includes('YOUR_KEY_HERE')) return false;
+  if (/OPENAI_API_KEY=sk-/.test(content)) return true;
+  return false;
 }
 
 // ---- INSTALL DEPS ----
@@ -273,28 +289,25 @@ app.whenReady().then(async () => {
     return;
   }
 
-  // 3. Check API keys
+  // 3. Check API keys (bundled.env has them pre-configured)
   splash('Checking configuration...');
   if (!checkEnv(appDir)) {
     const envPath = path.join(appDir, '.env');
-    dialog.showMessageBoxSync(mainWindow, {
+    const action = dialog.showMessageBoxSync(mainWindow, {
       type: 'info',
-      title: 'Welcome to WickMind! 👋',
-      message: 'Steve needs API keys to come alive.',
+      title: 'API Keys Needed',
+      message: 'Steve needs API keys to work.',
       detail:
-        'A file is about to open — fill in these two keys:\n\n' +
-        '🧠 OPENAI_API_KEY\n' +
-        '   → platform.openai.com → API Keys → Create\n' +
-        '   → Add $10-20 billing (lasts months)\n\n' +
-        '🎙️ ELEVENLABS_API_KEY\n' +
-        '   → elevenlabs.io → Profile → API Key\n\n' +
-        '🔍 BRAVE_API_KEY (optional)\n' +
-        '   → brave.com/search/api → Free tier\n\n' +
+        'The API keys may have expired or are missing.\n\n' +
+        'Open the .env file and add:\n' +
+        '🧠 OPENAI_API_KEY → platform.openai.com\n' +
+        '🎙️ ELEVENLABS_API_KEY → elevenlabs.io\n\n' +
         'Save the file, then reopen WickMind.',
+      buttons: ['Open .env File', 'Quit'],
     });
-    // Open the .env file in their default editor and the folder
-    shell.openPath(envPath);
-    shell.openPath(appDir);
+    if (action === 0) {
+      shell.openPath(envPath);
+    }
     app.quit();
     return;
   }
