@@ -127,19 +127,24 @@ function copyDirSync(src, dst) {
 // ---- CHECK ENV ----
 function checkEnv(appDir) {
   const envPath = path.join(appDir, '.env');
-  if (!fs.existsSync(envPath)) {
-    // Try to copy from bundled
-    const bundledEnv = path.join(RES, 'bundled.env');
-    if (fs.existsSync(bundledEnv)) {
+  const bundledEnv = path.join(RES, 'bundled.env');
+  
+  // Always try bundled.env first — overwrite placeholders with real keys
+  if (fs.existsSync(bundledEnv)) {
+    const bundledContent = fs.readFileSync(bundledEnv, 'utf8');
+    // If bundled has real keys (not placeholders), use it
+    if (/OPENAI_API_KEY=sk-/.test(bundledContent)) {
       fs.copyFileSync(bundledEnv, envPath);
       return true;
     }
-    return false;
   }
-  const content = fs.readFileSync(envPath, 'utf8');
-  // Check that at least OpenAI key is set (not placeholder)
-  if (content.includes('YOUR_KEY_HERE')) return false;
-  if (/OPENAI_API_KEY=sk-/.test(content)) return true;
+  
+  // Fall back to checking existing .env
+  if (fs.existsSync(envPath)) {
+    const content = fs.readFileSync(envPath, 'utf8');
+    if (/OPENAI_API_KEY=sk-/.test(content) && !content.includes('YOUR_KEY_HERE')) return true;
+  }
+  
   return false;
 }
 
@@ -291,26 +296,7 @@ app.whenReady().then(async () => {
 
   // 3. Check API keys (bundled.env has them pre-configured)
   splash('Checking configuration...');
-  if (!checkEnv(appDir)) {
-    const envPath = path.join(appDir, '.env');
-    const action = dialog.showMessageBoxSync(mainWindow, {
-      type: 'info',
-      title: 'API Keys Needed',
-      message: 'Steve needs API keys to work.',
-      detail:
-        'The API keys may have expired or are missing.\n\n' +
-        'Open the .env file and add:\n' +
-        '🧠 OPENAI_API_KEY → platform.openai.com\n' +
-        '🎙️ ELEVENLABS_API_KEY → elevenlabs.io\n\n' +
-        'Save the file, then reopen WickMind.',
-      buttons: ['Open .env File', 'Quit'],
-    });
-    if (action === 0) {
-      shell.openPath(envPath);
-    }
-    app.quit();
-    return;
-  }
+  checkEnv(appDir);  // Copy bundled keys if available — no dialog, no blocking
 
   // 4. Install dependencies
   splash('Installing dependencies (first run only)...');
