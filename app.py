@@ -264,6 +264,19 @@ Return ONLY the JSON array, no other text."""},
 # ---- SHARED FAMILY MEMORIES ----
 
 FAMILY_MEMORY_FILE = os.path.join(os.path.dirname(__file__), '.memories', '_family.json')
+FAMILY_CONTEXT_FILE = os.path.join(os.path.dirname(__file__), 'family.md')
+
+def _load_family_context():
+    """Load the editable family.md file — Steve's family knowledge base."""
+    if os.path.exists(FAMILY_CONTEXT_FILE):
+        try:
+            with open(FAMILY_CONTEXT_FILE, 'r') as f:
+                return f.read().strip()
+        except IOError:
+            return ""
+    return ""
+
+FAMILY_CONTEXT = _load_family_context()
 
 def load_family_memories():
     if os.path.exists(FAMILY_MEMORY_FILE):
@@ -655,11 +668,17 @@ def build_messages(sid):
             mem_text = "\n".join(f"- {m['content']} ({m.get('timestamp', '')})" for m in relevant)
             msgs.append({"role": "system", "content": f"Things you remember from past conversations with this person (use naturally, don't list them off):\n{mem_text}"})
         
-        # Layer 4: Shared family memories
+        # Layer 4: Shared family memories (editable file + auto-extracted)
+        family_ctx = _load_family_context()  # Reload each time in case it was edited
         family_mems = search_family_memories(last_user_msg)
+        family_parts = []
+        if family_ctx:
+            family_parts.append(f"Your family knowledge (things you just know as a dad/husband):\n{family_ctx}")
         if family_mems:
             fam_text = "\n".join(f"- {m['content']} (from {m.get('from_user', 'family')}, {m.get('timestamp', '')})" for m in family_mems)
-            msgs.append({"role": "system", "content": f"Things you know from other family members (use naturally — you learned this from family conversations, don't say 'your mom told me' unless it's appropriate):\n{fam_text}"})
+            family_parts.append(f"Things you've learned from recent family conversations:\n{fam_text}")
+        if family_parts:
+            msgs.append({"role": "system", "content": "\n\n".join(family_parts)})
     
     # Layer 5: Homework history
     hw_history = load_homework_history(username, max_entries=5)
