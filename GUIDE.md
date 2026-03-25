@@ -42,16 +42,22 @@ One file per person Steve talks to (e.g., `people/emma.md`, `people/kim.md`). Co
 **Edit when:** You want Steve to know something specific about a person.
 
 ### 📸 memories/ — Real Family Photos
-Photos Steve can pull up during conversations. Put photos in `memories/photos/` and describe them in `memories/memories.json`.
+Photos Steve can pull up during conversations. You can manage these through the **Settings page** in the app (⚙️ in the menu → Memory Photos tab), or manually:
 
-**How to add a photo:**
+**Via the app (recommended):**
+1. Open the app → ⚙️ Settings → Memory Photos
+2. Drag and drop photos or click to upload
+3. Fill in description, date, people, tags, and story
+4. Steve will show photos when conversation matches the tags
+
+**Manually:**
 1. Put the photo file in `memories/photos/` (e.g., `wedding.jpg`)
-2. Open `memories/memories.json` and add an entry:
+2. Open `memories/memories.json` and add an entry to the `photos` array:
 ```json
 {
+  "filename": "wedding.jpg",
   "tags": ["wedding", "marriage", "ceremony"],
   "description": "Steve and Kim at the altar",
-  "file": "wedding.jpg",
   "date": "2008-06-15",
   "people": ["Steve", "Kim"],
   "story": "Best day of my life. Kim looked absolutely stunning."
@@ -64,6 +70,19 @@ The keys that make Steve work. Only edit if keys expire.
 - `OPENAI_API_KEY` — Steve's brain (from platform.openai.com)
 - `ELEVENLABS_API_KEY` — Steve's voice (from elevenlabs.io)
 - `BRAVE_API_KEY` — Steve's ability to search the web (optional, from brave.com/search/api)
+
+---
+
+## Settings Page
+
+The Settings page (`⚙️` in the hamburger menu) lets you manage everything Steve knows without editing files manually:
+
+- **Family Info** — Edit family memories, stories, inside jokes, important dates
+- **Important Things** — Passwords, insurance, contacts, where to find documents
+- **Memory Photos** — Upload, tag, describe, and delete family photos
+- **Family Members** (admin only) — Add/remove people who can talk to Steve, reset passwords
+
+Only the admin account can make changes. Other family members can view settings but not edit.
 
 ---
 
