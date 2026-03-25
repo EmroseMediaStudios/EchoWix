@@ -54,3 +54,9 @@ wheels/
 Thumbs.db
 .DS_Store
 __pycache__/
+
+# Electron build artifacts
+electron/node_modules/
+electron/dist/
+electron/python-mac/
+electron/python-win/

@@ -1,181 +1,201 @@
-const { app, BrowserWindow, dialog, Menu, Tray, shell } = require('electron');
-const { spawn, execSync } = require('child_process');
+const { app, BrowserWindow, dialog, Menu, shell } = require('electron');
+const { spawn, execSync, execFileSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const net = require('net');
 
 // ---- PATHS ----
 const isDev = !app.isPackaged;
-const appRoot = isDev
-  ? path.join(__dirname, '..')
-  : path.join(process.resourcesPath, 'app');
+const RES = isDev ? __dirname : process.resourcesPath;
+const appRoot = path.join(RES, 'app');
 
 const PORT = 7751;
 let serverProcess = null;
 let mainWindow = null;
-let tray = null;
 let isQuitting = false;
 
 // ---- FIND PYTHON ----
 function findPython() {
-  // Check for bundled Python first
-  const bundled = path.join(appRoot, 'python', 'bin', 'python3');
-  if (fs.existsSync(bundled)) return bundled;
+  // 1. Bundled Python (ships with the app — no install needed)
+  const bundledUnix = path.join(RES, 'python', 'bin', 'python3');
+  if (fs.existsSync(bundledUnix)) return bundledUnix;
 
-  // Windows bundled
-  const bundledWin = path.join(appRoot, 'python', 'python.exe');
+  const bundledWin = path.join(RES, 'python', 'python.exe');
   if (fs.existsSync(bundledWin)) return bundledWin;
 
-  // Check for venv
-  const venvPy = path.join(appRoot, '.venv', 'bin', 'python3');
-  if (fs.existsSync(venvPy)) return venvPy;
-  const venvPyWin = path.join(appRoot, '.venv', 'Scripts', 'python.exe');
-  if (fs.existsSync(venvPyWin)) return venvPyWin;
-
-  // System Python
-  try {
-    execSync('python3 --version', { stdio: 'ignore' });
-    return 'python3';
-  } catch {
-    try {
-      execSync('python --version', { stdio: 'ignore' });
-      return 'python';
-    } catch {
-      return null;
-    }
+  // 2. Dev mode — check for venv in app root
+  if (isDev) {
+    const venvPy = path.join(appRoot, '..', '.venv', 'bin', 'python3');
+    if (fs.existsSync(venvPy)) return venvPy;
+    const venvPyWin = path.join(appRoot, '..', '.venv', 'Scripts', 'python.exe');
+    if (fs.existsSync(venvPyWin)) return venvPyWin;
   }
+
+  // 3. System Python as last resort
+  for (const cmd of ['python3', 'python']) {
+    try {
+      const ver = execSync(`${cmd} --version 2>&1`, { timeout: 5000 }).toString().trim();
+      const match = ver.match(/(\d+)\.(\d+)/);
+      if (match && (parseInt(match[1]) > 3 || (parseInt(match[1]) === 3 && parseInt(match[2]) >= 10))) {
+        return cmd;
+      }
+    } catch {}
+  }
+
+  return null;
 }
 
-// ---- CHECK PORT ----
+// ---- PORT CHECK ----
 function isPortInUse(port) {
   return new Promise((resolve) => {
-    const server = net.createServer();
-    server.once('error', () => resolve(true));
-    server.once('listening', () => { server.close(); resolve(false); });
-    server.listen(port, '127.0.0.1');
+    const s = net.createServer();
+    s.once('error', () => resolve(true));
+    s.once('listening', () => { s.close(); resolve(false); });
+    s.listen(port, '127.0.0.1');
   });
 }
 
-// ---- ENV FILE ----
-function ensureEnv() {
-  const envPath = path.join(appRoot, '.env');
-  const examplePath = path.join(appRoot, '.env.example');
-
-  if (!fs.existsSync(envPath)) {
-    if (fs.existsSync(examplePath)) {
-      fs.copyFileSync(examplePath, envPath);
-    }
-    return false; // needs API keys
-  }
-
-  // Check if keys are actually set
-  const content = fs.readFileSync(envPath, 'utf8');
-  if (content.includes('YOUR_KEY_HERE') || !content.includes('OPENAI_API_KEY=sk-')) {
-    return false;
-  }
-  return true;
+// ---- WRITABLE APP DATA ----
+// On first run, copy bundled app to a writable location so memories/conversations persist
+function getWritableAppDir() {
+  const dataDir = path.join(app.getPath('userData'), 'app-data');
+  return dataDir;
 }
 
-// ---- INSTALL DEPENDENCIES ----
-function installDeps(pythonPath) {
-  const reqPath = path.join(appRoot, 'requirements.txt');
+function ensureWritableApp() {
+  const dataDir = getWritableAppDir();
+  const marker = path.join(dataDir, '.initialized');
+
+  if (fs.existsSync(marker)) {
+    // Already initialized — just make sure core files are updated from bundle
+    // (personality, templates, etc. might have been updated in a new version)
+    const updateFiles = ['app.py', 'personality.md', 'templates', 'static', 'requirements.txt'];
+    for (const f of updateFiles) {
+      const src = path.join(appRoot, f);
+      const dst = path.join(dataDir, f);
+      if (fs.existsSync(src)) {
+        if (fs.statSync(src).isDirectory()) {
+          copyDirSync(src, dst);
+        } else {
+          fs.copyFileSync(src, dst);
+        }
+      }
+    }
+    return dataDir;
+  }
+
+  // First run — copy everything from bundled app
+  console.log('First run — setting up app data...');
+  copyDirSync(appRoot, dataDir);
+
+  // Create data directories
+  for (const dir of ['.memories', '.conversations', '.homework', '.quizzes', '.tts_cache', 'people']) {
+    const p = path.join(dataDir, dir);
+    if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+  }
+
+  // Copy .env.example to .env if no .env exists
+  const envDst = path.join(dataDir, '.env');
+  const envExample = path.join(dataDir, '.env.example');
+  if (!fs.existsSync(envDst) && fs.existsSync(envExample)) {
+    fs.copyFileSync(envExample, envDst);
+  }
+
+  fs.writeFileSync(marker, new Date().toISOString());
+  return dataDir;
+}
+
+function copyDirSync(src, dst) {
+  if (!fs.existsSync(dst)) fs.mkdirSync(dst, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const srcPath = path.join(src, entry.name);
+    const dstPath = path.join(dst, entry.name);
+    if (entry.isDirectory()) {
+      copyDirSync(srcPath, dstPath);
+    } else {
+      fs.copyFileSync(srcPath, dstPath);
+    }
+  }
+}
+
+// ---- CHECK ENV ----
+function checkEnv(appDir) {
+  const envPath = path.join(appDir, '.env');
+  if (!fs.existsSync(envPath)) return false;
+  const content = fs.readFileSync(envPath, 'utf8');
+  // Check that at least OpenAI key is set
+  return /OPENAI_API_KEY=sk-/.test(content);
+}
+
+// ---- INSTALL DEPS ----
+function installDeps(pythonPath, appDir) {
+  const reqPath = path.join(appDir, 'requirements.txt');
   if (!fs.existsSync(reqPath)) return true;
 
-  // Check if deps are installed by trying to import flask
+  // Quick check — try importing core deps
   try {
-    execSync(`"${pythonPath}" -c "import flask; import openai; import elevenlabs"`, {
-      cwd: appRoot,
+    execFileSync(pythonPath, ['-c', 'import flask; import openai'], {
+      cwd: appDir,
       stdio: 'ignore',
-      timeout: 10000,
+      timeout: 15000,
     });
-    return true; // already installed
-  } catch {
-    // Need to install
-    try {
-      execSync(`"${pythonPath}" -m pip install -r requirements.txt --quiet`, {
-        cwd: appRoot,
-        stdio: 'inherit',
-        timeout: 120000,
-      });
-      return true;
-    } catch (e) {
-      console.error('Failed to install dependencies:', e);
-      return false;
-    }
-  }
-}
+    return true;
+  } catch {}
 
-// ---- DATA DIRECTORIES ----
-function ensureDataDirs() {
-  // Create data directories if they don't exist
-  const dirs = ['.memories', '.conversations', '.homework', '.quizzes', '.tts_cache', 'people'];
-  for (const dir of dirs) {
-    const p = path.join(appRoot, dir);
-    if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+  // Install
+  try {
+    execFileSync(pythonPath, ['-m', 'pip', 'install', '-r', 'requirements.txt', '--quiet', '--disable-pip-version-check'], {
+      cwd: appDir,
+      stdio: 'inherit',
+      timeout: 180000,
+    });
+    return true;
+  } catch (e) {
+    console.error('Dep install failed:', e.message);
+    return false;
   }
 }
 
 // ---- START SERVER ----
-async function startServer(pythonPath) {
-  const inUse = await isPortInUse(PORT);
-  if (inUse) {
-    console.log(`Port ${PORT} already in use — server may already be running`);
+async function startServer(pythonPath, appDir) {
+  if (await isPortInUse(PORT)) {
+    console.log(`Port ${PORT} in use — assuming server running`);
     return true;
   }
 
   return new Promise((resolve) => {
     serverProcess = spawn(pythonPath, ['app.py'], {
-      cwd: appRoot,
+      cwd: appDir,
       env: { ...process.env, PYTHONUNBUFFERED: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
     let started = false;
     const timeout = setTimeout(() => {
-      if (!started) {
-        console.error('Server failed to start within 30 seconds');
-        resolve(false);
-      }
-    }, 30000);
+      if (!started) resolve(false);
+    }, 45000);
 
-    serverProcess.stdout.on('data', (data) => {
+    const checkOutput = (data) => {
       const text = data.toString();
-      console.log('[server]', text.trim());
-      if (text.includes('Starting') || text.includes('Running') || text.includes('port')) {
-        if (!started) {
-          started = true;
-          clearTimeout(timeout);
-          // Give it a moment to fully bind
-          setTimeout(() => resolve(true), 1500);
-        }
-      }
-    });
-
-    serverProcess.stderr.on('data', (data) => {
-      const text = data.toString();
-      console.error('[server]', text.trim());
-      // Flask debug mode prints to stderr
-      if (text.includes('Running on') || text.includes('Press CTRL')) {
-        if (!started) {
-          started = true;
-          clearTimeout(timeout);
-          setTimeout(() => resolve(true), 1500);
-        }
-      }
-    });
-
-    serverProcess.on('exit', (code) => {
-      console.log(`Server exited with code ${code}`);
-      serverProcess = null;
-      if (!started) {
+      console.log('[srv]', text.trim());
+      if (!started && (text.includes('Running on') || text.includes('Starting') || text.includes('port'))) {
+        started = true;
         clearTimeout(timeout);
-        resolve(false);
+        setTimeout(() => resolve(true), 2000);
       }
+    };
+
+    serverProcess.stdout.on('data', checkOutput);
+    serverProcess.stderr.on('data', checkOutput);
+    serverProcess.on('exit', (code) => {
+      console.log(`Server exited: ${code}`);
+      serverProcess = null;
+      if (!started) { clearTimeout(timeout); resolve(false); }
     });
   });
 }
 
-// ---- CREATE WINDOW ----
+// ---- WINDOW ----
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -183,7 +203,7 @@ function createWindow() {
     minWidth: 400,
     minHeight: 600,
     title: 'WickMind',
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     backgroundColor: '#06081a',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -193,7 +213,6 @@ function createWindow() {
     show: false,
   });
 
-  // Show splash while loading
   mainWindow.loadFile(path.join(__dirname, 'splash.html'));
   mainWindow.show();
 
@@ -204,114 +223,134 @@ function createWindow() {
     }
   });
 
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
+  mainWindow.on('closed', () => { mainWindow = null; });
 
-  // Open external links in default browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
   });
 }
 
-// ---- CREATE SPLASH ----
-function showSplash(message) {
+function splash(msg) {
   if (mainWindow) {
     mainWindow.webContents.executeJavaScript(
-      `document.getElementById('status').textContent = "${message}";`
+      `document.getElementById('status').textContent = ${JSON.stringify(msg)};`
     ).catch(() => {});
   }
 }
 
-// ---- APP LIFECYCLE ----
+// ---- MAIN ----
 app.whenReady().then(async () => {
   createWindow();
-  showSplash('Starting WickMind...');
+  splash('Starting WickMind...');
 
   // 1. Find Python
-  showSplash('Looking for Python...');
+  splash('Checking Python...');
   const pythonPath = findPython();
   if (!pythonPath) {
-    dialog.showErrorBox('Python Required',
-      'WickMind needs Python 3.10+ to run.\n\n' +
-      'Download it from python.org and restart WickMind.');
+    const action = dialog.showMessageBoxSync(mainWindow, {
+      type: 'error',
+      title: 'Python Not Found',
+      message: 'WickMind includes Python but it wasn\'t found.',
+      detail: 'This shouldn\'t happen with a normal install.\n\n' +
+        'As a fallback, you can install Python manually from python.org ' +
+        '(version 3.10 or newer), then restart WickMind.',
+      buttons: ['Download Python', 'Quit'],
+    });
+    if (action === 0) shell.openExternal('https://www.python.org/downloads/');
     app.quit();
     return;
   }
 
-  // 2. Ensure data directories
-  ensureDataDirs();
+  // 2. Set up writable app directory
+  splash('Setting up...');
+  let appDir;
+  try {
+    appDir = ensureWritableApp();
+  } catch (e) {
+    dialog.showErrorBox('Setup Error', `Failed to initialize app data:\n${e.message}`);
+    app.quit();
+    return;
+  }
 
-  // 3. Check .env
-  showSplash('Checking configuration...');
-  const hasKeys = ensureEnv();
-  if (!hasKeys) {
-    const envPath = path.join(appRoot, '.env');
+  // 3. Check API keys
+  splash('Checking configuration...');
+  if (!checkEnv(appDir)) {
+    const envPath = path.join(appDir, '.env');
     dialog.showMessageBoxSync(mainWindow, {
-      type: 'warning',
-      title: 'API Keys Needed',
-      message: 'WickMind needs API keys to work.',
-      detail: `Please edit this file with your API keys:\n\n${envPath}\n\n` +
-        'You need:\n' +
-        '• OPENAI_API_KEY from platform.openai.com\n' +
-        '• ELEVENLABS_API_KEY from elevenlabs.io\n\n' +
-        'After adding the keys, restart WickMind.',
+      type: 'info',
+      title: 'Welcome to WickMind! 👋',
+      message: 'Steve needs API keys to come alive.',
+      detail:
+        'A file is about to open — fill in these two keys:\n\n' +
+        '🧠 OPENAI_API_KEY\n' +
+        '   → platform.openai.com → API Keys → Create\n' +
+        '   → Add $10-20 billing (lasts months)\n\n' +
+        '🎙️ ELEVENLABS_API_KEY\n' +
+        '   → elevenlabs.io → Profile → API Key\n\n' +
+        '🔍 BRAVE_API_KEY (optional)\n' +
+        '   → brave.com/search/api → Free tier\n\n' +
+        'Save the file, then reopen WickMind.',
     });
-    shell.showItemInFolder(envPath);
+    // Open the .env file in their default editor and the folder
+    shell.openPath(envPath);
+    shell.openPath(appDir);
     app.quit();
     return;
   }
 
   // 4. Install dependencies
-  showSplash('Checking dependencies...');
-  const depsOk = installDeps(pythonPath);
+  splash('Installing dependencies (first run only)...');
+  const depsOk = installDeps(pythonPath, appDir);
   if (!depsOk) {
     dialog.showErrorBox('Setup Error',
-      'Failed to install Python dependencies.\n\n' +
-      'Try running this in Terminal:\n' +
-      `cd "${appRoot}" && "${pythonPath}" -m pip install -r requirements.txt`);
+      'Failed to install Python packages.\n\n' +
+      'Check your internet connection and try again.\n\n' +
+      `Python: ${pythonPath}\nApp: ${appDir}`);
     app.quit();
     return;
   }
 
   // 5. Start server
-  showSplash('Starting Steve...');
-  const started = await startServer(pythonPath);
+  splash('Waking up Steve...');
+  const started = await startServer(pythonPath, appDir);
   if (!started) {
     dialog.showErrorBox('Server Error',
-      'WickMind server failed to start.\n\n' +
-      'Check the console for errors.');
+      'Steve failed to start.\n\n' +
+      'Check the console (View → Toggle Developer Tools) for details.');
     app.quit();
     return;
   }
 
-  // 6. Load the app
-  showSplash('Almost there...');
+  // 6. Load
+  splash('Almost there...');
   setTimeout(() => {
-    if (mainWindow) {
-      mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
-    }
+    if (mainWindow) mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
   }, 500);
 
-  // Set up menu
-  const template = [
+  // Menu
+  const appMenu = [
     {
       label: 'WickMind',
       submenu: [
         { label: 'About WickMind', role: 'about' },
         { type: 'separator' },
         {
-          label: 'Open Data Folder',
-          click: () => shell.openPath(appRoot),
-        },
-        {
           label: 'Edit Family Memories',
-          click: () => shell.openPath(path.join(appRoot, 'family.md')),
+          click: () => shell.openPath(path.join(appDir, 'family.md')),
         },
         {
           label: 'Edit Personality',
-          click: () => shell.openPath(path.join(appRoot, 'personality.md')),
+          click: () => shell.openPath(path.join(appDir, 'personality.md')),
+        },
+        {
+          label: 'Edit API Keys',
+          click: () => shell.openPath(path.join(appDir, '.env')),
+        },
+        { type: 'separator' },
+        {
+          label: 'Open Data Folder',
+          click: () => shell.openPath(appDir),
         },
         { type: 'separator' },
         {
@@ -326,29 +365,34 @@ app.whenReady().then(async () => {
       { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' },
     ]},
     { label: 'View', submenu: [
-      { role: 'reload' }, { role: 'toggleDevTools' },
-      { type: 'separator' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'resetZoom' },
+      { role: 'reload' },
+      { role: 'toggleDevTools' },
+      { type: 'separator' },
+      { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'resetZoom' },
     ]},
   ];
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  Menu.setApplicationMenu(Menu.buildFromTemplate(appMenu));
 });
 
 app.on('before-quit', () => {
   isQuitting = true;
   if (serverProcess) {
     serverProcess.kill('SIGTERM');
+    // Give it a moment, then force
+    setTimeout(() => {
+      if (serverProcess) {
+        try { serverProcess.kill('SIGKILL'); } catch {}
+      }
+    }, 3000);
     serverProcess = null;
   }
 });
 
 app.on('activate', () => {
-  if (mainWindow) {
-    mainWindow.show();
-  }
+  if (mainWindow) mainWindow.show();
+  else createWindow();
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  if (process.platform !== 'darwin') app.quit();
 });

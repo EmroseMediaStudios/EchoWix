@@ -46,10 +46,16 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["universal"]
+          "arch": ["arm64"]
         }
       ],
-      "darkModeSupport": true
+      "darkModeSupport": true,
+      "extraResources": [
+        {
+          "from": "python-mac",
+          "to": "python"
+        }
+      ]
     },
     "win": {
       "icon": "icons/icon.ico",
@@ -57,6 +63,12 @@
         {
           "target": "nsis",
           "arch": ["x64"]
+        }
+      ],
+      "extraResources": [
+        {
+          "from": "python-win",
+          "to": "python"
         }
       ]
     },

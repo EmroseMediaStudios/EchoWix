@@ -1,99 +1,113 @@
-# WickMind — Electron Desktop App
+# WickMind — Desktop App
 
 ## What This Does
 
-Packages WickMind as a standalone desktop app (.dmg for Mac, .exe for Windows) that:
+Packages WickMind as a standalone desktop app with **everything included**:
+- Bundled Python 3.11 (no Python install needed)
+- All Python dependencies pre-installed
+- Steve's personality, family memories, people files
+- One-click install → runs immediately
 
-1. Opens with a splash screen ("Starting Steve...")
-2. Automatically starts the Python backend
-3. Loads the chat interface in its own window
-4. Has a menu bar with quick access to edit family.md, personality.md
-5. Hides to system tray on close (Mac), fully quits with Cmd+Q
+The user only needs: **API keys** (OpenAI + ElevenLabs)
 
-## Prerequisites
-
-On the BUILD machine:
-- Node.js 18+ (`brew install node` or nodejs.org)
-- Python 3.10+ (for testing)
-
-On the TARGET machine (whoever installs it):
-- Python 3.10+ (python.org — one-time install)
-- Internet connection (for API calls)
-- API keys (OpenAI + ElevenLabs)
-
-## How to Build
+## Build Steps (on your Mac)
 
 ```bash
 cd electron/
-npm install           # First time only
-./build.sh            # Builds for current platform
+
+# One command does everything:
+./build.sh mac       # → WickMind.dmg
+./build.sh win       # → WickMind Setup.exe
+./build.sh all       # → both
 ```
 
-Output goes to `electron/dist/`:
-- **Mac**: `WickMind-1.0.0-universal.dmg`
-- **Windows**: `WickMind Setup 1.0.0.exe`
+First build takes ~5 minutes (downloads and bundles Python + deps).
+Subsequent builds are fast (uses cached Python).
 
-## How to Build for Both Platforms
+## What the Installer Includes
 
-From a Mac:
-```bash
-npm run build-mac     # Makes .dmg
+```
+WickMind.app/
+├── Electron runtime
+├── python/              ← standalone Python 3.11 + all pip packages
+│   ├── bin/python3
+│   └── lib/python3.11/site-packages/
+│       ├── flask, openai, elevenlabs, httpx, ...
+├── app/                 ← WickMind source
+│   ├── app.py
+│   ├── personality.md
+│   ├── context.md
+│   ├── family.md
+│   ├── people/
+│   ├── templates/
+│   └── static/
+└── splash.html, main.js, preload.js
 ```
 
-For Windows (can cross-compile from Mac but .exe signing needs Windows):
-```bash
-npm run build-win     # Makes .exe installer
-```
+## What the User Experiences
 
-## What Gets Bundled
+### First Launch
+1. Double-click **WickMind.app** (or **WickMind.exe**)
+2. Splash: "Starting WickMind..."
+3. Friendly dialog: "Steve needs API keys to come alive"
+   - Opens `.env` file in their text editor
+   - Clear instructions for each key
+4. They paste in keys, save, relaunch
 
-The app bundles these files from the parent directory:
-- `app.py` — the server
-- `config.json` — voice settings
-- `personality.md` — Steve's personality
-- `context.md` — Steve's life memories
-- `family.md` — editable family knowledge
-- `people/` — per-person knowledge files
-- `static/` — images, icons
-- `templates/` — HTML templates
-- `requirements.txt` — Python dependencies
-- `.env.example` → copied to `.env` on first run
+### Every Launch After That
+1. Double-click WickMind
+2. Splash: "Waking up Steve..." (2-3 seconds)
+3. Steve's ready. Chat or call.
 
-NOT bundled (created on the target machine):
+### Zero Technical Knowledge Required
+- No Terminal
+- No Python install
+- No pip install
+- No browser
+- No port numbers
+- Just an app icon and API keys
+
+## Data Location
+
+User data lives in:
+- **Mac**: `~/Library/Application Support/WickMind/app-data/`
+- **Windows**: `%APPDATA%/WickMind/app-data/`
+
+Contains:
+- `.env` — API keys
 - `.memories/` — conversation memories
 - `.conversations/` — chat history
 - `.homework/` — homework tracking
 - `.quizzes/` — quiz results
-- `.tts_cache/` — voice cache
+- `family.md` — editable family knowledge
+- `people/` — per-person knowledge
 
-## First Run (What the User Sees)
+## Updating the App
 
-1. Double-click WickMind.app (or WickMind.exe)
-2. Splash screen: "Starting Steve..."
-3. If no `.env` file: dialog explains what API keys are needed, opens the file
-4. If no Python deps: auto-installs them (one-time, ~30 seconds)
-5. Server starts, chat loads
+When you build a new version:
+- Core files (app.py, templates, personality.md) get updated automatically
+- User data (memories, conversations, .env) is **never overwritten**
+- Family.md, people/ files persist across updates
 
-## Custom Icons
+## Menu Bar
 
-Place your icon files in `icons/`:
-- `icon.icns` — Mac icon (1024x1024, use iconutil or an online converter)
-- `icon.ico` — Windows icon (256x256)
+- **Edit Family Memories** — opens family.md
+- **Edit Personality** — opens personality.md
+- **Edit API Keys** — opens .env
+- **Open Data Folder** — shows everything
 
-## Updating Memories Before Packaging
+## If API Keys Stop Working
 
-Before building, make sure the parent directory has:
-1. Your latest `family.md` with all family memories
-2. Your latest `people/*.md` with per-person knowledge
-3. Your latest `context.md` with Steve's life context
-4. Latest `personality.md`
+Menu → Edit API Keys → replace the expired key → restart the app.
 
-These get frozen into the app at build time. The user's NEW memories build on top.
+Or user can find the file at:
+- Mac: `~/Library/Application Support/WickMind/app-data/.env`
+- Win: `%APPDATA%/WickMind/app-data/.env`
 
-## If API Keys Expire
+## Custom App Icon
 
-The `.env` file lives inside the app's resources:
-- **Mac**: Right-click WickMind.app → Show Package Contents → Contents/Resources/app/.env
-- **Windows**: `C:\Users\{user}\AppData\Local\Programs\wickmind\resources\app\.env`
+Place icon files in `electron/icons/`:
+- `icon.icns` for Mac (1024×1024)
+- `icon.ico` for Windows (256×256)
 
-Or use the menu: WickMind → Open Data Folder → edit `.env`
+Generate from a PNG: `npx electron-icon-builder --input=icon.png --output=icons/`
