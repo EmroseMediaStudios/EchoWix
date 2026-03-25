@@ -12,7 +12,7 @@
   "tts_settings": {
     "stability": 0.50,
     "similarity_boost": 0.78,
-    "style": 0.30,
+    "style": 0.35,
     "speed": 0.87,
     "use_speaker_boost": true
   }

@@ -307,12 +307,12 @@ def estimate_max_tokens(user_text):
     story_words = {"story", "stories", "bedtime", "fairytale", "fairy", "tale",
                    "adventure", "fable", "legend", "myth", "narrative"}
     if story_words & words:
-        return 2500
+        return 3000
     story_phrases = ["once upon", "make up", "make something up", "tell me one",
                      "tell me another", "one more", "keep going", "what happens next",
                      "tell it again"]
     if any(p in text for p in story_phrases):
-        return 2500
+        return 3000
 
     # Memory recall / nostalgia
     memory_words = {"remember", "reminds", "reminded", "nostalgia", "nostalgic",
@@ -358,6 +358,11 @@ def estimate_max_tokens(user_text):
         return 1500
 
     # ---- DEFAULT CONVERSATIONAL (1000 tokens) ----
+    # Short affirmatives after a story/explanation likely mean "continue"
+    continue_words = {"yes", "yeah", "yep", "yea", "sure", "go", "continue",
+                      "more", "please", "mhm", "mmhm", "ok", "okay", "alright"}
+    if words & continue_words and len(text.split()) <= 4:
+        return 2500
     return 1000
 
 
