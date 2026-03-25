@@ -294,16 +294,21 @@
             if(!f.type.startsWith('image/'))return;
             const fd=new FormData();
             fd.append('photo',f);
+            toast('Uploading '+f.name+'...');
             fetch('/api/settings/photos/upload',{method:'POST',body:fd})
-            .then(r=>r.json()).then(d=>{
+            .then(r=>{
+                if(!r.ok) throw new Error('Server returned '+r.status);
+                return r.json();
+            })
+            .then(d=>{
                 if(d.ok){
                     photosData.push(d.photo);
                     renderPhotos();
                     toast('Photo uploaded');
-                    // Open edit modal for the new photo
                     editPhoto(d.photo.filename);
                 }else toast(d.error||'Upload failed','error');
-            });
+            })
+            .catch(e=>{toast('Upload failed: '+e.message,'error');console.error('Upload error:',e);});
         });
     }
 

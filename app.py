@@ -51,6 +51,7 @@ def generate_explanation_image(prompt):
 MEMORIES_DIR = os.path.join(os.path.dirname(__file__), 'memories')
 MEMORIES_PHOTOS_DIR = os.path.join(MEMORIES_DIR, 'photos')
 MEMORIES_JSON = os.path.join(MEMORIES_DIR, 'memories.json')
+os.makedirs(MEMORIES_PHOTOS_DIR, exist_ok=True)
 
 def _load_memories_photos():
     """Load the memories.json photo index."""
@@ -1295,48 +1296,53 @@ def upload_photo():
     if 'photo' not in request.files:
         return jsonify({"ok": False, "error": "No file provided"}), 400
     
-    photo = request.files['photo']
-    if not photo.filename:
-        return jsonify({"ok": False, "error": "No filename"}), 400
-    
-    # Sanitize filename
-    filename = werkzeug.utils.secure_filename(photo.filename)
-    if not filename:
-        filename = f"photo_{int(time.time())}.jpg"
-    
-    # Ensure unique filename
-    save_path = os.path.join(MEMORIES_PHOTOS_DIR, filename)
-    if os.path.exists(save_path):
-        name, ext = os.path.splitext(filename)
-        filename = f"{name}_{int(time.time())}{ext}"
+    try:
+        photo = request.files['photo']
+        if not photo.filename:
+            return jsonify({"ok": False, "error": "No filename"}), 400
+        
+        # Sanitize filename
+        filename = werkzeug.utils.secure_filename(photo.filename)
+        if not filename:
+            filename = f"photo_{int(time.time())}.jpg"
+        
+        # Ensure unique filename
         save_path = os.path.join(MEMORIES_PHOTOS_DIR, filename)
-    
-    photo.save(save_path)
-    
-    # Add to memories.json
-    mem_file = os.path.join(os.path.dirname(__file__), 'memories', 'memories.json')
-    data = {"photos": []}
-    if os.path.exists(mem_file):
-        try:
-            with open(mem_file, 'r') as f:
-                data = json.load(f)
-        except (json.JSONDecodeError, IOError):
-            pass
-    
-    photo_entry = {
-        "filename": filename,
-        "description": "",
-        "tags": [],
-        "people": [],
-        "date": "",
-        "story": ""
-    }
-    data.setdefault("photos", []).append(photo_entry)
-    
-    with open(mem_file, 'w') as f:
-        json.dump(data, f, indent=2)
-    
-    return jsonify({"ok": True, "photo": photo_entry})
+        if os.path.exists(save_path):
+            name, ext = os.path.splitext(filename)
+            filename = f"{name}_{int(time.time())}{ext}"
+            save_path = os.path.join(MEMORIES_PHOTOS_DIR, filename)
+        
+        photo.save(save_path)
+        print(f"[settings] Photo saved: {save_path}")
+        
+        # Add to memories.json
+        mem_file = os.path.join(os.path.dirname(__file__), 'memories', 'memories.json')
+        data = {"photos": []}
+        if os.path.exists(mem_file):
+            try:
+                with open(mem_file, 'r') as f:
+                    data = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass
+        
+        photo_entry = {
+            "filename": filename,
+            "description": "",
+            "tags": [],
+            "people": [],
+            "date": "",
+            "story": ""
+        }
+        data.setdefault("photos", []).append(photo_entry)
+        
+        with open(mem_file, 'w') as f:
+            json.dump(data, f, indent=2)
+        
+        return jsonify({"ok": True, "photo": photo_entry})
+    except Exception as e:
+        print(f"[settings] Photo upload error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route('/api/settings/photos/meta', methods=['POST'])
