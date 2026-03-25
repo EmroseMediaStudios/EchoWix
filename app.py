@@ -27,6 +27,23 @@ load_dotenv()
 
 BRAVE_API_KEY = os.getenv('BRAVE_API_KEY', '')
 
+# ---- IMAGE GENERATION ----
+
+def generate_explanation_image(prompt):
+    """Generate an image via DALL-E 3 to help explain a concept visually."""
+    try:
+        resp = openai.images.generate(
+            model="dall-e-3",
+            prompt=f"{prompt} Simple, clear, educational illustration. No text, no words, no letters, no writing of any kind.",
+            n=1,
+            size="1024x1024",
+            quality="standard",
+        )
+        return resp.data[0].url
+    except Exception as e:
+        print(f"Image generation error: {e}")
+        return None
+
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.permanent_session_lifetime = int(os.getenv('SESSION_TIMEOUT_MINUTES', 120)) * 60  # default 2 hours
@@ -783,9 +800,20 @@ def chat():
                 if delta and delta.content:
                     full += (delta.content or "")
                     yield f"data: {json.dumps({'text': delta.content})}\n\n"
-            add_message(sid, "assistant", full)
+            # Check for image generation tags in the response
+            image_urls = []
+            clean_text = full
+            for match in re.finditer(r'\[SHOW_IMAGE:\s*(.+?)\]', full):
+                img_prompt = match.group(1).strip()
+                img_url = generate_explanation_image(img_prompt)
+                if img_url:
+                    image_urls.append(img_url)
+                clean_text = clean_text.replace(match.group(0), '')
+            add_message(sid, "assistant", clean_text.strip())
+            if image_urls:
+                yield f"data: {json.dumps({'images': image_urls})}\n\n"
             _uname = session.get('username', 'anonymous')
-            gevent.spawn(extract_memories_async, _uname, user_message or "[image]", full)
+            gevent.spawn(extract_memories_async, _uname, user_message or "[image]", clean_text.strip())
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as e:
             print(f"Chat error: {e}")
@@ -888,14 +916,31 @@ def handle_call_utterance(data):
         # 2. Stream GPT response → TTS each sentence as it completes
         full_text = ""
         for sentence in stream_ai_sentences(sid, user_text):
+            # Skip image generation tags in TTS — don't read them aloud
+            if '[SHOW_IMAGE:' in sentence:
+                full_text += (" " if full_text else "") + sentence
+                continue
             full_text += (" " if full_text else "") + sentence
             audio = tts_call(sentence)
             if audio:
                 b64 = base64.b64encode(audio).decode('utf-8')
                 emit('call_audio', {'data': b64})
 
-        if full_text:
-            emit('call_transcription', {'role': 'ai', 'text': full_text})
+        # Check for image generation tags in full response
+        image_urls = []
+        clean_text = full_text
+        for match in re.finditer(r'\[SHOW_IMAGE:\s*(.+?)\]', full_text):
+            img_prompt = match.group(1).strip()
+            img_url = generate_explanation_image(img_prompt)
+            if img_url:
+                image_urls.append(img_url)
+            clean_text = clean_text.replace(match.group(0), '')
+        clean_text = clean_text.strip()
+
+        if clean_text:
+            emit('call_transcription', {'role': 'ai', 'text': clean_text})
+        if image_urls:
+            emit('call_generated_image', {'urls': image_urls})
 
         emit('call_audio_end')
 
@@ -935,10 +980,22 @@ def handle_call_image(data):
             max_tokens=2000,
         )
         ai_text = resp.choices[0].message.content
-        add_message(sid, "assistant", ai_text)
+        
+        # Check for image generation tags
+        image_urls = []
+        clean_text = ai_text
+        for match in re.finditer(r'\[SHOW_IMAGE:\s*(.+?)\]', ai_text):
+            img_prompt = match.group(1).strip()
+            img_url = generate_explanation_image(img_prompt)
+            if img_url:
+                image_urls.append(img_url)
+            clean_text = clean_text.replace(match.group(0), '')
+        clean_text = clean_text.strip()
+        
+        add_message(sid, "assistant", clean_text)
 
         # Split into sentences and TTS each one
-        sentences = re.split(r'(?<=[.!?])\s+', ai_text)
+        sentences = re.split(r'(?<=[.!?])\s+', clean_text)
         for sentence in sentences:
             sentence = sentence.strip()
             if not sentence:
@@ -948,7 +1005,9 @@ def handle_call_image(data):
                 b64_audio = base64.b64encode(audio).decode('utf-8')
                 emit('call_audio', {'data': b64_audio})
 
-        emit('call_transcription', {'role': 'ai', 'text': ai_text})
+        emit('call_transcription', {'role': 'ai', 'text': clean_text})
+        if image_urls:
+            emit('call_generated_image', {'urls': image_urls})
         emit('call_audio_end')
 
         # Extract memories
