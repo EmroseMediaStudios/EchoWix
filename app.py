@@ -1153,6 +1153,16 @@ def index():
                            username=session.get('display_name', 'User'))
 
 
+@app.after_request
+def add_no_cache(response):
+    """Prevent browser caching HTML/JS so updates take effect on reload."""
+    if 'text/html' in response.content_type:
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
+
 @app.route('/api/chat', methods=['POST'])
 @login_required
 def chat():
