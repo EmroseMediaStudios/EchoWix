@@ -909,6 +909,57 @@ def handle_call_interrupt():
     print(f"Call interrupted by {session.get('username')}")
 
 
+@socketio.on('call_image')
+def handle_call_image(data):
+    """Handle image upload during a voice call — vision + TTS response."""
+    try:
+        sid = get_user_sid()
+        image_b64 = data.get('image')
+        mime = data.get('mime', 'image/jpeg')
+        if not image_b64:
+            emit('call_error', {'error': 'No image data'})
+            return
+
+        add_message(sid, "user", "[sent a photo]")
+        messages = build_messages(sid)
+        # Replace last message with multimodal content
+        messages[-1] = {"role": "user", "content": [
+            {"type": "text", "text": "I just sent you a photo. Look at it and help me with whatever's in it. If it's homework or a worksheet, walk me through it."},
+            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_b64}", "detail": "high"}},
+        ]}
+
+        resp = openai.chat.completions.create(
+            model=CONFIG.get('model', 'gpt-4o'),
+            messages=messages,
+            temperature=0.85,
+            max_tokens=2000,
+        )
+        ai_text = resp.choices[0].message.content
+        add_message(sid, "assistant", ai_text)
+
+        # Split into sentences and TTS each one
+        sentences = re.split(r'(?<=[.!?])\s+', ai_text)
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            audio = tts_call(sentence)
+            if audio:
+                b64_audio = base64.b64encode(audio).decode('utf-8')
+                emit('call_audio', {'data': b64_audio})
+
+        emit('call_transcription', {'role': 'ai', 'text': ai_text})
+        emit('call_audio_end')
+
+        # Extract memories
+        username = session.get('username', 'anonymous')
+        gevent.spawn(extract_memories_async, username, "[sent a photo]", ai_text)
+
+    except Exception as e:
+        print(f"Call image error: {e}")
+        emit('call_error', {'error': str(e)})
+
+
 @socketio.on('call_end')
 def handle_call_end():
     print(f"Live call ended by {session.get('username')}")

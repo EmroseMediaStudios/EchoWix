@@ -84,6 +84,9 @@
         .call-hangup{width:84px;height:84px;border-radius:50%;border:none;background:linear-gradient(135deg,var(--red),#dc2626);color:#fff;cursor:pointer;transition:all .2s;box-shadow:0 0 30px rgba(239,68,68,0.3);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:30px}
         .call-hangup:hover{transform:scale(1.1);box-shadow:0 0 40px rgba(239,68,68,0.5)}
         .call-hangup img{width:84px;height:84px;object-fit:cover;border-radius:50%}
+        .call-upload-btn{width:64px;height:64px;border-radius:50%;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;font-size:1.5rem;color:var(--text2)}
+        .call-upload-btn:hover{background:rgba(255,255,255,0.1);transform:scale(1.05)}
+        .call-img-thumb{max-width:120px;max-height:90px;border-radius:8px;border:1px solid var(--border);margin:4px auto;display:block}
         .clear-menu{display:none;position:absolute;top:52px;right:12px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:5px;z-index:30;box-shadow:0 8px 30px rgba(0,0,0,0.5)}
         .clear-menu.show{display:block}
         .clear-menu button{display:block;width:100%;padding:7px 14px;background:transparent;border:none;color:var(--text2);font-size:0.8rem;cursor:pointer;border-radius:6px;text-align:left;font-family:inherit;white-space:nowrap}
@@ -129,8 +132,13 @@
             <div class="call-name">{{ avatar_name }}</div>
             <div class="call-status" id="callStatus">Connecting...</div>
             <div class="call-timer" id="callTimer">0:00</div>
+            <div id="callImagePreview" style="display:none;margin:8px auto;text-align:center;"></div>
             <div class="call-transcript" id="callTranscript"></div>
-            <button class="call-hangup" onclick="endCall()"><img src="/static/img/icon-hangup.png" onerror="this.style.display='none';this.parentElement.textContent='📞'"></button>
+            <div style="display:flex;gap:16px;align-items:center;">
+              <input type="file" id="callImageInput" accept="image/*" style="display:none" onchange="sendCallImage(this)">
+              <button class="call-upload-btn" onclick="document.getElementById('callImageInput').click()" title="Send a photo">📎</button>
+              <button class="call-hangup" onclick="endCall()"><img src="/static/img/icon-hangup.png" onerror="this.style.display='none';this.parentElement.textContent='📞'"></button>
+            </div>
         </div>
     </div>
 </div>
@@ -344,6 +352,25 @@ function startInterruptMonitor(){
     return;
 }
 function stopInterruptMonitor(){interruptMon=false;}
+function sendCallImage(input){
+    const file=input.files[0];if(!file||!inCall)return;
+    const reader=new FileReader();
+    reader.onload=e=>{
+        const b64=e.target.result.split(',')[1];
+        const mime=file.type||'image/jpeg';
+        // Show thumbnail in call
+        const prev=document.getElementById('callImagePreview');
+        prev.style.display='block';
+        prev.innerHTML=`<img src="${e.target.result}" class="call-img-thumb">`;
+        // Show in transcript
+        setTranscript('user','[sent a photo]');
+        addMessage('user','[sent a photo]');
+        setCallSt('thinking');
+        socket.emit('call_image',{image:b64,mime:mime});
+    };
+    reader.readAsDataURL(file);
+    input.value='';
+}
 function saveConversation(){
     const msgs=[];document.querySelectorAll('.msg-row').forEach(r=>{
         const role=r.classList.contains('user')?'user':'assistant',b=r.querySelector('.msg-bubble');
