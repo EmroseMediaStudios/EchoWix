@@ -874,7 +874,6 @@ def _init_users():
     if not os.path.exists(USERS_FILE):
         users = {
             "admin": {"password": _hash_pw("3ThreeIs1!"), "role": "admin", "display_name": "Steve"},
-            "drew": {"password": _hash_pw("InfinitePumpkins"), "role": "user", "display_name": "Drew"},
             "kim": {"password": _hash_pw("MoonAndBack"), "role": "user", "display_name": "Kim"},
             "emma": {"password": _hash_pw("LoveYou3000"), "role": "user", "display_name": "Emma"},
         }
