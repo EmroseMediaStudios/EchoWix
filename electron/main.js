@@ -353,6 +353,14 @@ app.whenReady().then(async () => {
           click: () => shell.openPath(path.join(appDir, 'family.md')),
         },
         {
+          label: 'Edit Memory Photos',
+          click: () => shell.openPath(path.join(appDir, 'memories')),
+        },
+        {
+          label: 'Edit Important Info',
+          click: () => shell.openPath(path.join(appDir, 'important.md')),
+        },
+        {
           label: 'Edit Personality',
           click: () => shell.openPath(path.join(appDir, 'personality.md')),
         },

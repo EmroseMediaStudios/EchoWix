@@ -44,6 +44,56 @@ def generate_explanation_image(prompt):
         print(f"Image generation error: {e}")
         return None
 
+
+# ---- MEMORY PHOTOS ----
+
+MEMORIES_DIR = os.path.join(os.path.dirname(__file__), 'memories')
+MEMORIES_PHOTOS_DIR = os.path.join(MEMORIES_DIR, 'photos')
+MEMORIES_JSON = os.path.join(MEMORIES_DIR, 'memories.json')
+
+def _load_memories_photos():
+    """Load the memories.json photo index."""
+    if os.path.exists(MEMORIES_JSON):
+        try:
+            with open(MEMORIES_JSON, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return []
+    return []
+
+def search_memory_photos(query, top_n=3):
+    """Search memory photos by tag matching against a query string."""
+    memories = _load_memories_photos()
+    if not memories:
+        return []
+    
+    query_words = set(query.lower().split())
+    scored = []
+    for mem in memories:
+        # Check if the photo file actually exists
+        photo_path = os.path.join(MEMORIES_PHOTOS_DIR, mem.get('file', ''))
+        if not os.path.exists(photo_path):
+            continue
+        
+        tags = set(t.lower() for t in mem.get('tags', []))
+        people = set(p.lower() for p in mem.get('people', []))
+        all_keywords = tags | people
+        
+        # Score by overlap
+        overlap = len(query_words & all_keywords)
+        # Partial matching — check if any query word is a substring of any tag
+        if overlap == 0:
+            for qw in query_words:
+                for kw in all_keywords:
+                    if qw in kw or kw in qw:
+                        overlap += 0.5
+        
+        if overlap > 0:
+            scored.append((overlap, mem))
+    
+    scored.sort(key=lambda x: -x[0])
+    return [m for _, m in scored[:top_n]]
+
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.permanent_session_lifetime = int(os.getenv('SESSION_TIMEOUT_MINUTES', 120)) * 60  # default 2 hours
@@ -277,6 +327,23 @@ def _load_family_context():
     return ""
 
 FAMILY_CONTEXT = _load_family_context()
+
+# ---- IMPORTANT THINGS (passwords, insurance, contacts, how-tos) ----
+
+IMPORTANT_FILE = os.path.join(os.path.dirname(__file__), 'important.md')
+
+def _load_important_context():
+    """Load important.md — passwords, insurance, contacts, where to find things."""
+    if os.path.exists(IMPORTANT_FILE):
+        try:
+            with open(IMPORTANT_FILE, 'r') as f:
+                content = f.read().strip()
+                # Only return if there's actual content (not just template placeholders)
+                if content and any(line.strip() and not line.startswith('#') and not line.startswith('-') and not line.startswith('_') and not line.startswith('<!--') for line in content.split('\n') if ':' in line and line.split(':', 1)[1].strip()):
+                    return content
+        except IOError:
+            pass
+    return ""
 
 def load_family_memories():
     if os.path.exists(FAMILY_MEMORY_FILE):
@@ -715,7 +782,12 @@ def build_messages(sid):
         if family_parts:
             msgs.append({"role": "system", "content": "\n\n".join(family_parts)})
     
-    # Layer 5: Homework history
+    # Layer 5: Important things (passwords, insurance, contacts)
+    important_ctx = _load_important_context()
+    if important_ctx:
+        msgs.append({"role": "system", "content": f"IMPORTANT — You know all of this. When someone asks about passwords, insurance, contacts, where to find things, how to do important tasks — answer from this knowledge. Be direct and helpful, like a husband/dad who just knows this stuff:\n\n{important_ctx}"})
+    
+    # Layer 6: Homework history
     hw_history = load_homework_history(username, max_entries=5)
     if hw_history:
         hw_text = "\n".join(f"- {h.get('subject', '?')}: {h.get('topic', '?')} ({h.get('outcome', '?')}, {h.get('timestamp', '')})" for h in hw_history[-5:])
@@ -730,6 +802,25 @@ def build_messages(sid):
     loc = USER_LOCATIONS.get(username)
     if loc and loc.get('city'):
         msgs.append({"role": "system", "content": f"This person is currently in {loc['city']}. Use this naturally when relevant (weather, local recommendations, time-aware responses). Don't mention their location unprompted."})
+    
+    # Layer 8: Memory photos
+    # Search for relevant photos based on recent conversation
+    if last_user_msg:
+        matching_photos = search_memory_photos(last_user_msg)
+        if matching_photos:
+            photo_text = "\n".join(
+                f"- [{m['file']}] {m.get('description', '')} ({', '.join(m.get('people', []))})"
+                f"{' — ' + m.get('date', '') if m.get('date') else ''}"
+                f"{' — ' + m.get('story', '') if m.get('story') else ''}"
+                for m in matching_photos
+            )
+            msgs.append({"role": "system", "content": 
+                f"You have REAL FAMILY PHOTOS you can show. These matched the conversation:\n{photo_text}\n\n"
+                "To show a photo, include [SHOW_MEMORY: filename.jpg] in your response. "
+                "When showing a real memory photo, be emotional and genuine — 'Oh man, look at this...' or 'Here, check this out —' "
+                "and then share the story naturally. These are YOUR real memories. "
+                "ALWAYS prefer real photos over DALL-E generated images for personal/family moments. "
+                "Only use [SHOW_IMAGE:] for educational/explanatory visuals, never for family memories."})
     
     msgs.extend(history)
     return msgs
@@ -1133,14 +1224,25 @@ def chat():
                     chunk_text = _strip_latex(delta.content)
                     full += chunk_text
                     yield f"data: {json.dumps({'text': chunk_text})}\n\n"
-                    # Start image generation as soon as we detect complete tags mid-stream
+                    # Start DALL-E image generation as soon as we detect complete tags mid-stream
                     for tag_match in re.finditer(r'\[SHOW_IMAGE:\s*(.+?)\]', full):
                         if tag_match.group(0) not in _started_imgs:
                             _started_imgs.add(tag_match.group(0))
                             _img_futures.append(gevent.spawn(generate_explanation_image, tag_match.group(1).strip()))
-            # Collect any image results (started during streaming, should be mostly done)
+                    # Send memory photos IMMEDIATELY (they're local, no delay)
+                    for tag_match in re.finditer(r'\[SHOW_MEMORY:\s*(.+?)\]', full):
+                        if tag_match.group(0) not in _started_imgs:
+                            _started_imgs.add(tag_match.group(0))
+                            mem_file = tag_match.group(1).strip()
+                            mem_path = os.path.join(MEMORIES_PHOTOS_DIR, os.path.basename(mem_file))
+                            if os.path.exists(mem_path):
+                                yield f"data: {json.dumps({'images': [f'/api/memory_photo/{os.path.basename(mem_file)}']})}\n\n"
+            # Collect any DALL-E image results (started during streaming, should be mostly done)
             image_urls = [f.value for f in gevent.joinall(_img_futures, timeout=20) if f.value]
             clean_text = full
+            # Strip all special tags (memory photos already sent)
+            for match in re.finditer(r'\[SHOW_MEMORY:\s*(.+?)\]', full):
+                clean_text = clean_text.replace(match.group(0), '')
             # Strip all special tags
             for match in re.finditer(r'\[SHOW_IMAGE:\s*(.+?)\]', full):
                 clean_text = clean_text.replace(match.group(0), '')
@@ -1148,6 +1250,7 @@ def chat():
             clean_text = clean_text.replace('[STOP_SOUND]', '')
             clean_text = clean_text.strip()
             add_message(sid, "assistant", clean_text.strip())
+            # Send DALL-E generated images (memory photos already sent mid-stream)
             if image_urls:
                 yield f"data: {json.dumps({'images': image_urls})}\n\n"
             gevent.spawn(extract_memories_async, _uname, user_message or "[image]", clean_text.strip())
@@ -1221,6 +1324,18 @@ def update_location():
         "updated": time.strftime('%Y-%m-%d %H:%M'),
     }
     return jsonify({"ok": True, "city": city})
+
+
+@app.route('/api/memory_photo/<filename>')
+@login_required
+def serve_memory_photo(filename):
+    """Serve a photo from the memories/photos directory."""
+    safe_name = os.path.basename(filename)  # Prevent directory traversal
+    photo_path = os.path.join(MEMORIES_PHOTOS_DIR, safe_name)
+    if os.path.exists(photo_path):
+        from flask import send_file
+        return send_file(photo_path)
+    return '', 404
 
 
 @app.route('/api/ambient')
@@ -1309,7 +1424,7 @@ def handle_call_utterance(data):
         full_text = ""
         for sentence in stream_ai_sentences(sid, user_text):
             # Skip special tags in TTS — don't read them aloud
-            if '[SHOW_IMAGE:' in sentence or '[PLAY_SOUND:' in sentence or '[STOP_SOUND]' in sentence:
+            if '[SHOW_IMAGE:' in sentence or '[PLAY_SOUND:' in sentence or '[STOP_SOUND]' in sentence or '[SHOW_MEMORY:' in sentence:
                 full_text += (" " if full_text else "") + sentence
                 continue
             full_text += (" " if full_text else "") + sentence
@@ -1326,6 +1441,13 @@ def handle_call_utterance(data):
             img_url = generate_explanation_image(img_prompt)
             if img_url:
                 image_urls.append(img_url)
+            clean_text = clean_text.replace(match.group(0), '')
+        # Extract memory photos
+        for match in re.finditer(r'\[SHOW_MEMORY:\s*(.+?)\]', full_text):
+            mem_file = match.group(1).strip()
+            mem_path = os.path.join(MEMORIES_PHOTOS_DIR, os.path.basename(mem_file))
+            if os.path.exists(mem_path):
+                image_urls.append(f"/api/memory_photo/{os.path.basename(mem_file)}")
             clean_text = clean_text.replace(match.group(0), '')
         clean_text = re.sub(r'\[PLAY_SOUND:\s*\w+\]', '', clean_text)
         clean_text = clean_text.replace('[STOP_SOUND]', '')
@@ -1399,6 +1521,12 @@ def handle_call_image(data):
             img_url = generate_explanation_image(img_prompt)
             if img_url:
                 image_urls.append(img_url)
+            clean_text = clean_text.replace(match.group(0), '')
+        for match in re.finditer(r'\[SHOW_MEMORY:\s*(.+?)\]', ai_text):
+            mem_file = match.group(1).strip()
+            mem_path = os.path.join(MEMORIES_PHOTOS_DIR, os.path.basename(mem_file))
+            if os.path.exists(mem_path):
+                image_urls.append(f"/api/memory_photo/{os.path.basename(mem_file)}")
             clean_text = clean_text.replace(match.group(0), '')
         clean_text = re.sub(r'\[PLAY_SOUND:\s*\w+\]', '', clean_text)
         clean_text = clean_text.replace('[STOP_SOUND]', '')

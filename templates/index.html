@@ -175,8 +175,9 @@ function initSocket(){
         if(d.urls&&d.urls.length>0){
             const prev=document.getElementById('callImagePreview');
             prev.style.display='block';
-            let html='';
-            d.urls.forEach(url=>{html+=`<img src="${url}" class="call-img-thumb" style="max-width:200px;max-height:200px;cursor:pointer;" onclick="openLightbox(this.src)">`;});
+            let html='<button onclick="this.parentElement.style.display=\'none\';this.parentElement.innerHTML=\'\'" style="position:absolute;top:-8px;right:-8px;width:24px;height:24px;border-radius:50%;background:rgba(239,68,68,0.9);color:#fff;border:none;cursor:pointer;font-size:14px;z-index:1;display:flex;align-items:center;justify-content:center;">✕</button>';
+            d.urls.forEach(url=>{html+=`<img src="${url}" class="call-img-thumb" style="max-width:250px;max-height:250px;cursor:pointer;" onclick="openLightbox(this.src)">`;});
+            prev.style.position='relative';
             prev.innerHTML=html;
             // Also add to chat messages
             d.urls.forEach(url=>{addMessage('ai','[generated an image]');
@@ -256,7 +257,7 @@ function handleStream(res){
             try{const d=JSON.parse(line.slice(6));
                 if(d.text){
                     // Strip image and sound tags from display
-                    let clean=d.text.replace(/\[SHOW_IMAGE:[^\]]+\]/g,'');
+                    let clean=d.text.replace(/\[SHOW_IMAGE:[^\]]+\]/g,'').replace(/\[SHOW_MEMORY:[^\]]+\]/g,'');
                     // Detect ambient sound commands
                     const soundMatch=clean.match(/\[PLAY_SOUND:\s*(\w+)\]/);
                     if(soundMatch){playAmbient(soundMatch[1].toLowerCase());clean=clean.replace(/\[PLAY_SOUND:[^\]]+\]/g,'');}

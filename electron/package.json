@@ -32,9 +32,12 @@
           "personality.md",
           "context.md",
           "family.md",
+          "important.md",
+          "GUIDE.md",
           "requirements.txt",
           "run.sh",
           "people/**/*",
+          "memories/**/*",
           "static/**/*",
           "templates/**/*",
           ".env.example"
