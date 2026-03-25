@@ -25,6 +25,8 @@ import httpx
 
 load_dotenv()
 
+BRAVE_API_KEY = os.getenv('BRAVE_API_KEY', '')
+
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.permanent_session_lifetime = int(os.getenv('SESSION_TIMEOUT_MINUTES', 120)) * 60  # default 2 hours
@@ -240,6 +242,58 @@ Return ONLY the JSON array, no other text."""},
                 pass
     except Exception as e:
         print(f"Memory extraction error: {e}")
+
+
+# ---- WEB SEARCH ----
+
+def web_search(query, max_results=5):
+    """Search the web via Brave Search API. Returns list of {title, url, snippet}."""
+    if not BRAVE_API_KEY:
+        return []
+    try:
+        resp = httpx.get(
+            "https://api.search.brave.com/res/v1/web/search",
+            headers={"Accept": "application/json", "Accept-Encoding": "gzip", "X-Subscription-Token": BRAVE_API_KEY},
+            params={"q": query, "count": max_results},
+            timeout=8,
+        )
+        if resp.status_code != 200:
+            return []
+        results = []
+        for r in resp.json().get("web", {}).get("results", [])[:max_results]:
+            results.append({"title": r.get("title", ""), "url": r.get("url", ""), "snippet": r.get("description", "")})
+        return results
+    except Exception as e:
+        print(f"Web search error: {e}")
+        return []
+
+
+def should_search(user_text):
+    """Quick heuristic: does this message look like it needs a web search?"""
+    text = user_text.lower().strip()
+    search_signals = [
+        "look up", "look it up", "google", "search", "find out",
+        "what is", "what are", "what was", "what were", "what does",
+        "who is", "who was", "who are",
+        "when is", "when was", "when did", "when does",
+        "where is", "where was", "where are",
+        "how many", "how much", "how far", "how long", "how old",
+        "how do you", "how does", "how do i", "how to",
+        "is it true", "can you check", "fact check",
+        "what happened", "latest", "current", "recent", "today",
+        "score", "weather", "price", "cost",
+        "define", "meaning of", "definition",
+        "explain", "tell me about", "what's the deal with",
+    ]
+    for signal in search_signals:
+        if signal in text:
+            return True
+    if "?" in text and len(text.split()) >= 4:
+        personal = ["how are you", "do you love", "are you", "can you talk", "you okay",
+                    "miss you", "love you", "feel", "think about me", "what should i"]
+        if not any(p in text for p in personal):
+            return True
+    return False
 
 
 def build_messages(sid):
@@ -595,15 +649,51 @@ def index():
 @app.route('/api/chat', methods=['POST'])
 @login_required
 def chat():
-    """Text chat with streaming SSE response."""
-    data = request.get_json()
-    user_message = data.get('message', '').strip()
-    if not user_message:
+    """Text chat with streaming SSE response. Supports optional image attachment and web search."""
+    # Handle both JSON and multipart form data (for image uploads)
+    image_b64 = None
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        user_message = request.form.get('message', '').strip()
+        img_file = request.files.get('image')
+        if img_file:
+            img_data = img_file.read()
+            image_b64 = base64.b64encode(img_data).decode('utf-8')
+            mime = img_file.content_type or 'image/jpeg'
+    else:
+        data = request.get_json()
+        user_message = data.get('message', '').strip()
+
+    if not user_message and not image_b64:
         return jsonify({"error": "Empty message"}), 400
 
     sid = get_user_sid()
-    add_message(sid, "user", user_message)
+
+    # Build user message content (text or multimodal)
+    if image_b64:
+        user_content = [
+            {"type": "text", "text": user_message or "What's in this image?"},
+            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_b64}", "detail": "high"}},
+        ]
+        add_message(sid, "user", user_message or "[sent an image]")
+    else:
+        user_content = user_message
+        add_message(sid, "user", user_message)
+
+    # Web search if needed
+    search_context = ""
+    if user_message and should_search(user_message) and BRAVE_API_KEY:
+        results = web_search(user_message)
+        if results:
+            snippets = "\n".join(f"- {r['title']}: {r['snippet']}" for r in results)
+            search_context = f"\n\n[You just looked this up — use it naturally, don't mention 'search results' or cite URLs. Just know this and talk about it like you already knew or just checked:\n{snippets}]"
+
     messages = build_messages(sid)
+    # Replace the last user message with the multimodal content if image
+    if image_b64:
+        messages[-1] = {"role": "user", "content": user_content}
+    # Inject search context as a system message right before the user message
+    if search_context:
+        messages.insert(-1, {"role": "system", "content": search_context})
 
     def generate():
         full = ""
@@ -613,7 +703,7 @@ def chat():
                 messages=messages,
                 stream=True,
                 temperature=0.85,
-                max_tokens=500,
+                max_tokens=1000,
             )
             for chunk in stream:
                 delta = chunk.choices[0].delta if chunk.choices else None
@@ -621,9 +711,8 @@ def chat():
                     full += (delta.content or "")
                     yield f"data: {json.dumps({'text': delta.content})}\n\n"
             add_message(sid, "assistant", full)
-            # Extract memories in background
             _uname = session.get('username', 'anonymous')
-            gevent.spawn(extract_memories_async, _uname, user_message, full)
+            gevent.spawn(extract_memories_async, _uname, user_message or "[image]", full)
             yield f"data: {json.dumps({'done': True})}\n\n"
         except Exception as e:
             print(f"Chat error: {e}")

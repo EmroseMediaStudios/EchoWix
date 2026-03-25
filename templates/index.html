@@ -59,6 +59,11 @@
         .text-input{flex:1;background:rgba(16,21,64,0.4);border:1px solid var(--border);color:var(--text1);padding:10px 16px;border-radius:24px;font-size:0.88rem;font-family:inherit;outline:none;transition:all 0.2s}
         .text-input:focus{border-color:rgba(59,130,246,0.3);box-shadow:0 0 10px rgba(59,130,246,0.12)}
         .text-input::placeholder{color:var(--text3)}
+        .attach-btn{width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;font-size:1.2rem;color:var(--text3)}
+        .attach-btn:hover{background:rgba(255,255,255,0.08);color:var(--text1)}
+        .img-preview{position:relative;display:inline-block;margin:4px 8px;max-height:60px}
+        .img-preview img{max-height:60px;border-radius:8px;border:1px solid var(--border)}
+        .img-preview .remove-img{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--red);color:#fff;border:none;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;line-height:1}
         .send-btn{width:64px;height:64px;border-radius:50%;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;overflow:hidden}
         .send-btn:hover{background:rgba(255,255,255,0.08);transform:scale(1.05)}
         .send-btn img{width:64px;height:64px;object-fit:cover;border-radius:50%}
@@ -109,7 +114,10 @@
             </div>
         </div>
         <div class="messages" id="messages"></div>
+        <div id="imagePreview" style="display:none"></div>
         <div class="input-bar">
+            <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="previewImage(this)">
+            <button class="attach-btn" onclick="document.getElementById('imageInput').click()" title="Attach image">📎</button>
             <input type="text" class="text-input" id="textInput" placeholder="Message {{ avatar_name }}..." autocomplete="off">
             <button class="send-btn" onclick="sendMessage()" title="Send"><img src="/static/img/icon-send.png" onerror="this.style.display='none';this.parentElement.textContent='➤'"></button>
         </div>
@@ -165,20 +173,53 @@ function removeTyping(){const e=document.getElementById('typingRow');if(e)e.remo
 function startStream(){removeTyping();const c=document.getElementById('messages'),r=document.createElement('div');r.className='msg-row ai';r.innerHTML=`${aiAv()}<div class="msg-body"><div class="msg-bubble" id="streamBubble"></div><div class="msg-meta">${ts()}</div></div>`;c.appendChild(r);c.scrollTop=c.scrollHeight;}
 function appendStream(t){const b=document.getElementById('streamBubble');if(b){b.textContent+=t;document.getElementById('messages').scrollTop=document.getElementById('messages').scrollHeight;}}
 function endStream(){const b=document.getElementById('streamBubble');if(b){b.innerHTML=esc(b.textContent)+bars();b.removeAttribute('id');}}
+let pendingImage=null;
+function previewImage(input){
+    const file=input.files[0];if(!file)return;
+    pendingImage=file;
+    const reader=new FileReader();
+    reader.onload=e=>{
+        const prev=document.getElementById('imagePreview');
+        prev.style.display='block';
+        prev.innerHTML=`<div class="img-preview"><img src="${e.target.result}"><button class="remove-img" onclick="clearImage()">✕</button></div>`;
+    };
+    reader.readAsDataURL(file);
+}
+function clearImage(){pendingImage=null;document.getElementById('imagePreview').style.display='none';document.getElementById('imagePreview').innerHTML='';document.getElementById('imageInput').value='';}
 function sendMessage(){
-    const input=document.getElementById('textInput'),text=input.value.trim();if(!text)return;
-    addMessage('user',text);input.value='';addTyping();
-    fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({message:text})})
-    .then(res=>{
-        if(!res.ok){removeTyping();addMessage('ai','[Error: '+res.status+']');return;}
-        const reader=res.body.getReader(),dec=new TextDecoder();let started=false,buf='';
-        function read(){reader.read().then(({done,value})=>{
-            if(done){if(!started)removeTyping();endStream();saveConversation();return;}
-            buf+=dec.decode(value,{stream:true});const lines=buf.split('\n');buf=lines.pop();
-            for(const line of lines){if(!line.startsWith('data: '))continue;
-                try{const d=JSON.parse(line.slice(6));if(d.text){if(!started){startStream();started=true;}appendStream(d.text);}if(d.error){removeTyping();addMessage('ai','[Error: '+d.error+']');}}catch(e){}}
-            read();});}read();
-    }).catch(()=>{removeTyping();addMessage('ai','[Connection error]');});
+    const input=document.getElementById('textInput'),text=input.value.trim();
+    if(!text&&!pendingImage)return;
+    const displayText=text||(pendingImage?'[sent an image]':'');
+    addMessage('user',displayText);
+    if(pendingImage){
+        const prev=document.getElementById('imagePreview');
+        // Show image thumbnail in user message
+        const lastMsg=document.querySelector('.msg-row.user:last-of-type .msg-bubble');
+        if(lastMsg&&prev.querySelector('img')){
+            const imgEl=document.createElement('img');imgEl.src=prev.querySelector('img').src;imgEl.style.cssText='max-width:200px;max-height:150px;border-radius:8px;display:block;margin-top:6px;';
+            lastMsg.appendChild(imgEl);
+        }
+    }
+    input.value='';addTyping();
+    if(pendingImage){
+        const fd=new FormData();fd.append('message',text);fd.append('image',pendingImage);
+        clearImage();
+        fetch('/api/chat',{method:'POST',credentials:'same-origin',body:fd})
+        .then(res=>handleStream(res)).catch(()=>{removeTyping();addMessage('ai','[Connection error]');});
+    } else {
+        fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({message:text})})
+        .then(res=>handleStream(res)).catch(()=>{removeTyping();addMessage('ai','[Connection error]');});
+    }
+}
+function handleStream(res){
+    if(!res.ok){removeTyping();addMessage('ai','[Error: '+res.status+']');return;}
+    const reader=res.body.getReader(),dec=new TextDecoder();let started=false,buf='';
+    function read(){reader.read().then(({done,value})=>{
+        if(done){if(!started)removeTyping();endStream();saveConversation();return;}
+        buf+=dec.decode(value,{stream:true});const lines=buf.split('\n');buf=lines.pop();
+        for(const line of lines){if(!line.startsWith('data: '))continue;
+            try{const d=JSON.parse(line.slice(6));if(d.text){if(!started){startStream();started=true;}appendStream(d.text);}if(d.error){removeTyping();addMessage('ai','[Error: '+d.error+']');}}catch(e){}}
+        read();});}read();
 }
 function playTTS(el){
     const bubble=el.closest('.msg-bubble'),text=bubble.childNodes[0].textContent.trim();if(!text)return;
