@@ -658,6 +658,18 @@ def _strip_latex(text):
     text = re.sub(r'\\text\{(.+?)\}', r'\1', text)
     # Clean up any remaining backslash commands
     text = re.sub(r'\\[a-zA-Z]+\b', '', text)
+    # Strip markdown formatting — Steve talks, he doesn't write documents
+    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)  # **bold**
+    text = re.sub(r'\*(.+?)\*', r'\1', text)       # *italic*
+    text = re.sub(r'__(.+?)__', r'\1', text)       # __bold__
+    text = re.sub(r'_(.+?)_', r'\1', text)         # _italic_
+    text = re.sub(r'`(.+?)`', r'\1', text)         # `code`
+    # Strip numbered lists — convert "1. Thing" to just "Thing"
+    text = re.sub(r'^\s*\d+\.\s+', '', text, flags=re.MULTILINE)
+    # Strip bullet points
+    text = re.sub(r'^\s*[-•]\s+', '', text, flags=re.MULTILINE)
+    # Reduce excessive exclamation marks
+    text = re.sub(r'!{2,}', '!', text)  # !! or !!! → !
     return text
 
 
